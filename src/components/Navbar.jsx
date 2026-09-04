@@ -81,7 +81,7 @@ export default function Navbar() {
                   </span>
                 </div>
                 <p className="text-[10px] sm:text-[11px] text-slate-500 leading-none truncate max-w-[160px] sm:max-w-none">
-                  Kerala Local Self-Government Dept
+                  Civic Administration Portal
                 </p>
               </div>
             </Link>

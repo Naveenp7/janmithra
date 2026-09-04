@@ -136,7 +136,7 @@ export default function SubmitComplaint() {
       }
 
       // Step 3: Save real complaint to Firestore
-      setSubmitStep('Registering complaint in LSG municipal database...');
+      setSubmitStep('Registering complaint in database...');
       const complaintRecord = {
         citizenId: currentUser.uid,
         citizenName: currentUser.name || 'Citizen',
@@ -146,7 +146,7 @@ export default function SubmitComplaint() {
         location: {
           lat: location.lat,
           lng: location.lng,
-          ward: location.ward || 'General LSG Division',
+          ward: location.ward || 'General Municipal Ward',
           address: location.address || '',
         },
         category: classification.category || 'Other',
@@ -173,7 +173,7 @@ export default function SubmitComplaint() {
       <div className="mb-6">
         <div className="flex items-center gap-2 text-teal-700 text-xs font-bold uppercase tracking-wider mb-1">
           <Sparkles className="w-4 h-4" />
-          <span>LSGD Civic Helpdesk</span>
+          <span>Civic Issue Helpdesk</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
           Report a Civic Issue
@@ -369,7 +369,7 @@ export default function SubmitComplaint() {
             ) : (
               <>
                 <Send className="w-5 h-5" />
-                <span>Submit Official Complaint to LSG Portal</span>
+                <span>Submit Civic Issue Report</span>
               </>
             )}
           </button>

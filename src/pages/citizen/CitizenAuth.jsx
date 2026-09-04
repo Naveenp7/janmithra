@@ -89,7 +89,7 @@ export default function CitizenAuth() {
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             {isSignUp
-              ? 'Register with Kerala LSGD Civic Reporting System'
+              ? 'Register with JanMithra Civic Reporting System'
               : 'Sign in to file complaints and track resolution status in real time'}
           </p>
         </div>
@@ -258,7 +258,7 @@ export default function CitizenAuth() {
         </div>
 
         <div className="mt-6 pt-4 border-t border-slate-100 text-center text-xs text-slate-400">
-          Local Government Official?{' '}
+          Municipal Authority Official?{' '}
           <Link to="/admin/login" className="font-bold text-slate-700 hover:underline">
             Authority Portal Login
           </Link>

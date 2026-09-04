@@ -90,7 +90,7 @@ export default function MyComplaints() {
             My Submitted Complaints
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Real-time status updates synced directly with Kerala LSG municipal field actions.
+            Real-time status updates synced directly with municipal field actions.
           </p>
         </div>
 

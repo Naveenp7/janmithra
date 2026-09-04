@@ -116,7 +116,7 @@ export default function App() {
           <footer className="bg-white border-t border-slate-200/90 py-6 text-xs text-slate-500">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
               <div>
-                <span className="font-bold text-slate-800">JanMithra</span> — Local Self-Government Department (LSGD), Government of Kerala
+                <span className="font-bold text-slate-800">JanMithra</span> — AI-Powered Civic Issue Reporting & Triage Platform (College Capstone Project)
               </div>
               <div className="text-slate-400 text-[11px]">
                 Citizen Grievance Redressal & Intelligent Civic Routing Portal

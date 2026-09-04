@@ -76,10 +76,10 @@ export default function AdminAuth() {
             <Building2 className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-extrabold text-white tracking-tight">
-            {isRegistering ? 'Register LSG Authority Account' : 'Authority Portal Login'}
+            {isRegistering ? 'Register Authority Account' : 'Authority Portal Login'}
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Government of Kerala — Local Self-Government Department (LSGD) Executive Console
+            Municipal Administration & Engineering Executive Console
           </p>
         </div>
 
@@ -142,7 +142,7 @@ export default function AdminAuth() {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. K. S. Narayanan (Secretary, LSG)"
+                    placeholder="e.g. K. S. Narayanan (Municipal Engineer)"
                     className="w-full text-sm pl-9 pr-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
                   />
                 </div>
@@ -150,7 +150,7 @@ export default function AdminAuth() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  LSG Department
+                  Department / Domain
                 </label>
                 <select
                   value={department}
@@ -167,7 +167,7 @@ export default function AdminAuth() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  LSGD Security Authorization Key
+                  Administrator Authorization Key
                 </label>
                 <div className="relative">
                   <KeyRound className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
@@ -175,7 +175,7 @@ export default function AdminAuth() {
                     type="password"
                     value={secretCode}
                     onChange={(e) => setSecretCode(e.target.value)}
-                    placeholder="Default: LSG-KERALA-ADMIN"
+                    placeholder="Default: ADMIN-KEY-2026"
                     className="w-full text-sm pl-9 pr-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
                   />
                 </div>
@@ -197,7 +197,7 @@ export default function AdminAuth() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="officer.lsg@kerala.gov.in"
+                placeholder="officer@civic.local"
                 className="w-full text-sm pl-9 pr-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all"
               />
             </div>
@@ -226,7 +226,7 @@ export default function AdminAuth() {
             disabled={loading || !isFirebaseConfigured}
             className="w-full py-3 px-4 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-sm rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
           >
-            <span>{loading ? 'Authenticating...' : isRegistering ? 'Register Authority Account' : 'Sign In as LSG Authority'}</span>
+            <span>{loading ? 'Authenticating...' : isRegistering ? 'Register Authority Account' : 'Sign In as Authority Officer'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>

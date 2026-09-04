@@ -192,10 +192,10 @@ export function AuthProvider({ children }) {
       throw new Error('Firebase is not configured. Please add Firebase keys to .env');
     }
 
-    // Optional LSG admin registration key validation (for safety)
-    const VALID_ADMIN_KEY = 'LSG-KERALA-ADMIN';
-    if (secretCode && secretCode.trim() !== VALID_ADMIN_KEY) {
-      throw new Error('Invalid LSGD Authority Authorization Key.');
+    // Optional admin registration key validation (for safety)
+    const VALID_ADMIN_KEYS = ['ADMIN-KEY-2026', 'LSG-KERALA-ADMIN'];
+    if (secretCode && !VALID_ADMIN_KEYS.includes(secretCode.trim())) {
+      throw new Error('Invalid Administrator Authorization Key.');
     }
 
     const cred = await createUserWithEmailAndPassword(auth, email, password);
@@ -240,7 +240,7 @@ export function AuthProvider({ children }) {
         // Sign out if not an admin
         await signOut(auth);
         setCurrentUser(null);
-        throw new Error('Access Denied: This account is not registered as an LSG Authority / Administrator.');
+        throw new Error('Access Denied: This account is not registered as an Authority / Administrator.');
       }
 
       const userDetails = snap.data();
