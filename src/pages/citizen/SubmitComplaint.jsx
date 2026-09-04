@@ -113,6 +113,8 @@ export default function SubmitComplaint() {
     setUploadProgress(0);
 
     try {
+      let imageUrl = null;
+
       // Step 1: Upload Image to Cloudinary (if provided)
       if (imageFile) {
         if (!isCloudinaryConfigured) {
