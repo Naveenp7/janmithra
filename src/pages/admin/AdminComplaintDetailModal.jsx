@@ -49,7 +49,7 @@ export default function AdminComplaintDetailModal({ complaint, onClose, onUpdate
         await updateComplaintStatusInFirestore(complaint.complaintId, selectedStatus);
       }
 
-      setSuccessMsg('Complaint status & assignment updated successfully in Firestore!');
+      setSuccessMsg('Complaint status & assignment updated successfully!');
       if (onUpdated) onUpdated();
 
       setTimeout(() => {
@@ -155,7 +155,7 @@ export default function AdminComplaintDetailModal({ complaint, onClose, onUpdate
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
             <div className="flex items-center gap-2 text-teal-800 text-xs font-bold uppercase tracking-wider mb-1.5">
               <Sparkles className="w-4 h-4 text-teal-600" />
-              <span>NVIDIA NIM AI Assessment</span>
+              <span>Automated AI Triage Assessment</span>
             </div>
             <p className="text-xs text-slate-700 italic">
               "{complaint.aiReasoning || 'Assessed through civic classification intelligence.'}"

@@ -251,7 +251,7 @@ export default function ComplaintDetail() {
             <div className="p-5 rounded-2xl bg-gradient-to-br from-teal-50 via-slate-50 to-emerald-50 border border-teal-200/80 shadow-2xs">
               <div className="flex items-center gap-2 text-teal-800 text-xs font-extrabold uppercase tracking-wider mb-2">
                 <Sparkles className="w-4 h-4 text-teal-600" />
-                <span>Explainable AI (NVIDIA NIM) Triage</span>
+                <span>Automated AI Triage Assessment</span>
               </div>
               <div className="space-y-2 text-xs text-slate-700">
                 <div className="flex items-center justify-between pb-2 border-b border-teal-100">

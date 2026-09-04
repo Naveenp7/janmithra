@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
-import DemoNotice from './components/DemoNotice.jsx';
 import Navbar from './components/Navbar.jsx';
 
 // Citizen Pages
@@ -61,7 +60,6 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
-          <DemoNotice />
           <Navbar />
 
           <main className="flex-1">
@@ -115,13 +113,13 @@ export default function App() {
           </main>
 
           {/* Footer */}
-          <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
-            <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <footer className="bg-white border-t border-slate-200/90 py-6 text-xs text-slate-500">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
               <div>
-                <strong>JanMithra</strong> — Local Self-Government Department (LSGD), Government of Kerala
+                <span className="font-bold text-slate-800">JanMithra</span> — Local Self-Government Department (LSGD), Government of Kerala
               </div>
-              <div className="text-slate-400">
-                Civic Issue Reporting & Resolution Platform • AI-Powered Triage (NVIDIA NIM)
+              <div className="text-slate-400 text-[11px]">
+                Citizen Grievance Redressal & Intelligent Civic Routing Portal
               </div>
             </div>
           </footer>

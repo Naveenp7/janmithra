@@ -32,15 +32,15 @@ export default function Navbar() {
   const navItemClass = (path) => {
     const active = location.pathname === path;
     if (isAdminPortal) {
-      return `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+      return `flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
         active
-          ? 'bg-slate-800 text-teal-400 shadow-sm'
+          ? 'bg-slate-800 text-teal-300 shadow-2xs'
           : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
       }`;
     }
-    return `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+    return `flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
       active
-        ? 'bg-teal-50 text-teal-700 shadow-sm border border-teal-100'
+        ? 'bg-teal-50 text-teal-800 shadow-2xs border border-teal-200'
         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
     }`;
   };
@@ -50,16 +50,16 @@ export default function Navbar() {
       className={`sticky top-0 z-40 transition-colors border-b ${
         isAdminPortal
           ? 'bg-slate-950 text-slate-100 border-slate-800'
-          : 'bg-white/95 backdrop-blur-md text-slate-900 border-slate-200'
+          : 'bg-white/95 backdrop-blur-md text-slate-900 border-slate-200/90'
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo & Portal Branding */}
-          <div className="flex items-center gap-3">
-            <Link to={isAdminPortal ? '/admin' : '/citizen'} className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link to={isAdminPortal ? '/admin' : '/citizen'} className="flex items-center gap-2 sm:gap-2.5">
               <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xl shadow-md ${
+                className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-lg sm:text-xl shadow-sm ${
                   isAdminPortal
                     ? 'bg-gradient-to-br from-teal-400 to-emerald-600 text-slate-950'
                     : 'bg-gradient-to-br from-teal-500 to-emerald-600 text-white'
@@ -68,20 +68,20 @@ export default function Navbar() {
                 <ShieldAlert className="w-5 h-5" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-lg tracking-tight">JanMithra</span>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className="font-extrabold text-base sm:text-lg tracking-tight">JanMithra</span>
                   <span
-                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                    className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md ${
                       isAdminPortal
                         ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
                         : 'bg-teal-50 text-teal-700 border border-teal-200'
                     }`}
                   >
-                    {isAdminPortal ? 'Authority Portal' : 'Citizen Portal'}
+                    {isAdminPortal ? 'Authority' : 'Citizen'}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 leading-none">
-                  Kerala Local Self-Government Department
+                <p className="text-[10px] sm:text-[11px] text-slate-500 leading-none truncate max-w-[160px] sm:max-w-none">
+                  Kerala Local Self-Government Dept
                 </p>
               </div>
             </Link>
@@ -178,34 +178,34 @@ export default function Navbar() {
 
       {/* Mobile Sub-Navigation Bar */}
       <div
-        className={`md:hidden px-4 py-2 border-t flex items-center justify-around text-xs ${
-          isAdminPortal ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
+        className={`md:hidden px-3 py-2 border-t flex items-center justify-around text-xs ${
+          isAdminPortal ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200/90 shadow-2xs'
         }`}
       >
         {!isAdminPortal ? (
           <>
             <Link to="/citizen" className={navItemClass('/citizen')}>
-              <PlusCircle className="w-3.5 h-3.5" />
-              Report Issue
+              <PlusCircle className="w-4 h-4" />
+              <span>Report Issue</span>
             </Link>
             <Link to="/citizen/my-complaints" className={navItemClass('/citizen/my-complaints')}>
-              <ListOrdered className="w-3.5 h-3.5" />
-              My Complaints
+              <ListOrdered className="w-4 h-4" />
+              <span>My Complaints</span>
             </Link>
           </>
         ) : (
           <>
             <Link to="/admin" className={navItemClass('/admin')}>
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              Dashboard
+              <LayoutDashboard className="w-4 h-4" />
+              <span>Dashboard</span>
             </Link>
             <Link to="/admin/map" className={navItemClass('/admin/map')}>
-              <MapPin className="w-3.5 h-3.5" />
-              Map
+              <MapPin className="w-4 h-4" />
+              <span>Map</span>
             </Link>
             <Link to="/admin/analytics" className={navItemClass('/admin/analytics')}>
-              <BarChart3 className="w-3.5 h-3.5" />
-              Analytics
+              <BarChart3 className="w-4 h-4" />
+              <span>Analytics</span>
             </Link>
           </>
         )}

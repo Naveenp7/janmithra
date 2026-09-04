@@ -59,3 +59,17 @@
     opacity: 0;
   }
 }
+
+/* Mobile-friendly utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+

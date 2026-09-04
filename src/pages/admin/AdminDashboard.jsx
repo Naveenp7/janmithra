@@ -264,91 +264,138 @@ export default function AdminDashboard() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-600 border-collapse">
-              <thead className="bg-slate-50/80 text-slate-700 font-extrabold uppercase tracking-wider text-[10px] border-b border-slate-200">
-                <tr>
-                  <th className="py-3.5 px-4">Category</th>
-                  <th className="py-3.5 px-4">Description & Citizen</th>
-                  <th className="py-3.5 px-4">Ward / Location</th>
-                  <th className="py-3.5 px-4">AI Urgency</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4">Assigned Crew</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {filtered.map((item) => (
-                  <tr
-                    key={item.complaintId}
-                    className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
-                    onClick={() => setActiveComplaint(item)}
-                  >
-                    {/* Category */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className="inline-block px-2.5 py-1 rounded-md text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200">
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-600 border-collapse">
+                <thead className="bg-slate-50/80 text-slate-700 font-extrabold uppercase tracking-wider text-[10px] border-b border-slate-200">
+                  <tr>
+                    <th className="py-3.5 px-4">Category</th>
+                    <th className="py-3.5 px-4">Description & Citizen</th>
+                    <th className="py-3.5 px-4">Ward / Location</th>
+                    <th className="py-3.5 px-4">AI Urgency</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4">Assigned Crew</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {filtered.map((item) => (
+                    <tr
+                      key={item.complaintId}
+                      className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
+                      onClick={() => setActiveComplaint(item)}
+                    >
+                      {/* Category */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className="inline-block px-2.5 py-1 rounded-md text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                          {item.category}
+                        </span>
+                      </td>
+
+                      {/* Description & Citizen */}
+                      <td className="py-3.5 px-4 max-w-xs">
+                        <div className="line-clamp-2 text-slate-900 font-semibold leading-relaxed">
+                          {item.description}
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          By {item.citizenName || 'Citizen'}
+                        </div>
+                      </td>
+
+                      {/* Ward */}
+                      <td className="py-3.5 px-4 max-w-[160px] truncate">
+                        <div className="flex items-center gap-1 text-slate-700 font-medium">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          <span className="truncate">{item.location?.ward || 'General'}</span>
+                        </div>
+                      </td>
+
+                      {/* AI Urgency */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <UrgencyBadge urgency={item.urgency} size="sm" />
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <StatusBadge status={item.status} size="sm" />
+                      </td>
+
+                      {/* Assigned Crew */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        {item.assignedWorker ? (
+                          <span className="text-blue-700 font-semibold text-xs">
+                            {item.assignedWorker}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-xs italic">Unassigned</span>
+                        )}
+                      </td>
+
+                      {/* Action button */}
+                      <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveComplaint(item);
+                          }}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Manage</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List View */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {filtered.map((item) => (
+                <div
+                  key={item.complaintId}
+                  onClick={() => setActiveComplaint(item)}
+                  className="p-4 hover:bg-slate-50 transition-colors cursor-pointer space-y-2.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
                         {item.category}
                       </span>
-                    </td>
-
-                    {/* Description & Citizen */}
-                    <td className="py-3.5 px-4 max-w-xs">
-                      <div className="line-clamp-2 text-slate-900 font-semibold leading-relaxed">
-                        {item.description}
-                      </div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">
-                        By {item.citizenName || 'Citizen'}
-                      </div>
-                    </td>
-
-                    {/* Ward */}
-                    <td className="py-3.5 px-4 max-w-[160px] truncate">
-                      <div className="flex items-center gap-1 text-slate-700 font-medium">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                        <span className="truncate">{item.location?.ward || 'General'}</span>
-                      </div>
-                    </td>
-
-                    {/* AI Urgency */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <UrgencyBadge urgency={item.urgency} size="sm" />
-                    </td>
+                    </div>
+                    <StatusBadge status={item.status} size="sm" />
+                  </div>
 
-                    {/* Status */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <StatusBadge status={item.status} size="sm" />
-                    </td>
+                  <p className="text-xs font-semibold text-slate-900 line-clamp-2 leading-relaxed">
+                    {item.description}
+                  </p>
 
-                    {/* Assigned Crew */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      {item.assignedWorker ? (
-                        <span className="text-blue-700 font-semibold text-xs">
-                          {item.assignedWorker}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 text-xs italic">Unassigned</span>
-                      )}
-                    </td>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                    <div className="flex items-center gap-1 truncate max-w-[180px]">
+                      <MapPin className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                      <span className="truncate">{item.location?.ward || 'Kerala'}</span>
+                    </div>
 
-                    {/* Action button */}
-                    <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveComplaint(item);
-                        }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors shadow-2xs cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Manage</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveComplaint(item);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-lg text-xs font-bold shadow-2xs cursor-pointer"
+                    >
+                      <Eye className="w-3 h-3" />
+                      <span>Manage</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 

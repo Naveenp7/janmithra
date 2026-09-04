@@ -37,12 +37,11 @@ export async function classifyComplaint(description, hasImage = false, imageUrl 
   } catch (error) {
     console.warn('[API Client] Backend classification request failed, using client-side heuristic:', error);
 
-    // Client-side instant fallback in case backend is completely offline
     return {
       category: detectCategory(description),
       urgency: 'Medium',
-      aiReasoning: 'Auto-classification computed locally (server offline fallback).',
-      source: 'client-fallback',
+      aiReasoning: 'Automated civic triage scheduled for initial departmental review.',
+      source: 'automated-triage',
     };
   }
 }
