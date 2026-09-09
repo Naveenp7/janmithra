@@ -21,13 +21,16 @@ export default async function handler(req, res) {
 
   try {
     const { description, hasImage, imageUrl } = req.body || {};
+    const textDesc = typeof description === 'string' ? description.trim() : '';
 
-    if (!description || typeof description !== 'string') {
-      return res.status(400).json({ error: 'Complaint description is required' });
+    if (!textDesc && !hasImage && !imageUrl) {
+      return res.status(400).json({ error: 'Complaint description or photo evidence is required' });
     }
 
+    const safeDescription = textDesc || 'Civic issue reported via on-site photo evidence.';
+
     const classification = await classifyComplaintText(
-      description,
+      safeDescription,
       Boolean(hasImage || imageUrl),
       imageUrl || null
     );

@@ -108,7 +108,7 @@ export default function AdminDashboard() {
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-teal-600 uppercase tracking-wider mb-1">
             <LayoutDashboard className="w-4 h-4" />
-            <span>LSG Kerala Executive Authority</span>
+            <span>Municipal Authority Console</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Civic Issue Management Dashboard
@@ -377,7 +377,7 @@ export default function AdminDashboard() {
                   <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
                     <div className="flex items-center gap-1 truncate max-w-[180px]">
                       <MapPin className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                      <span className="truncate">{item.location?.ward || 'Kerala'}</span>
+                      <span className="truncate">{item.location?.ward || 'Local Ward'}</span>
                     </div>
 
                     <button
@@ -424,7 +424,7 @@ export default function AdminDashboard() {
                 <Users className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900">LSG Municipal Field Staff</h3>
+                <h3 className="text-lg font-bold text-slate-900">Municipal Field Staff</h3>
                 <p className="text-xs text-slate-500">
                   Workers available for civic complaint resolution dispatch.
                 </p>

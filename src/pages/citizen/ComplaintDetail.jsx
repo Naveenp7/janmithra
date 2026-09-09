@@ -21,7 +21,7 @@ const TIMELINE_STEPS = [
   {
     key: 'submitted',
     title: 'Submitted',
-    desc: 'Issue filed by citizen and logged into LSG database.',
+    desc: 'Issue filed by citizen and logged into municipal database.',
     icon: Clock,
   },
   {
@@ -83,7 +83,7 @@ export default function ComplaintDetail() {
         </div>
         <h2 className="text-xl font-bold text-slate-900 mb-2">Complaint Not Found</h2>
         <p className="text-sm text-slate-500 mb-6">
-          The requested complaint identifier (#{id}) could not be located in the LSG registry.
+          The requested complaint identifier (#{id}) could not be located in the municipal registry.
         </p>
         <Link
           to="/citizen/my-complaints"
@@ -152,7 +152,7 @@ export default function ComplaintDetail() {
             </span>
             <span className="flex items-center gap-1.5">
               <MapPin className="w-4 h-4 text-slate-400" />
-              {complaint.location?.ward || 'Kerala Ward'}
+              {complaint.location?.ward || 'Local Ward'}
             </span>
           </div>
         </div>
@@ -277,9 +277,9 @@ export default function ComplaintDetail() {
                 Municipal Routing Details
               </h4>
               <div className="flex items-start justify-between gap-2">
-                <span className="font-semibold text-slate-600">LSG Ward:</span>
+                <span className="font-semibold text-slate-600">Ward / Division:</span>
                 <span className="font-medium text-slate-900 text-right">
-                  {complaint.location?.ward || 'General LSG Ward'}
+                  {complaint.location?.ward || 'General Ward'}
                 </span>
               </div>
               {complaint.location?.address && (

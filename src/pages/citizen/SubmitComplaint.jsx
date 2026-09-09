@@ -78,14 +78,15 @@ export default function SubmitComplaint() {
 
   // Trigger AI Classification Preview
   const handleTestAi = async () => {
-    if (!description.trim()) {
-      setError('Please type a brief description of the civic issue first.');
+    if (!description.trim() && !imageFile) {
+      setError('Please provide an issue description or attach a photo first.');
       return;
     }
     setError(null);
     setAiLoading(true);
     try {
-      const res = await classifyComplaint(description, Boolean(imageFile));
+      const promptText = description.trim() || 'Civic issue report with photo evidence';
+      const res = await classifyComplaint(promptText, Boolean(imageFile), imagePreview);
       setAiPreview(res);
     } catch (err) {
       setError('AI classification preview failed.');
@@ -103,8 +104,8 @@ export default function SubmitComplaint() {
       return;
     }
 
-    if (!description.trim()) {
-      setError('Please provide a description of the civic issue.');
+    if (!description.trim() && !imageFile) {
+      setError('Please provide a description or attach on-site photo evidence.');
       return;
     }
 
@@ -133,8 +134,9 @@ export default function SubmitComplaint() {
       // Step 2: AI Classification
       setSubmitStep('Analyzing civic issue with automated triage...');
       let classification = aiPreview;
+      const finalDescription = description.trim() || 'Civic issue reported via on-site photo evidence.';
       if (!classification || imageUrl) {
-        classification = await classifyComplaint(description, Boolean(imageUrl), imageUrl);
+        classification = await classifyComplaint(finalDescription, Boolean(imageUrl), imageUrl);
       }
 
       // Step 3: Save real complaint to Firestore
@@ -143,7 +145,7 @@ export default function SubmitComplaint() {
         citizenId: currentUser.uid,
         citizenName: currentUser.name || 'Citizen',
         citizenEmail: currentUser.email || '',
-        description: description.trim(),
+        description: finalDescription,
         imageUrl: imageUrl,
         location: {
           lat: location.lat,
@@ -151,9 +153,9 @@ export default function SubmitComplaint() {
           ward: location.ward || 'General Municipal Ward',
           address: location.address || '',
         },
-        category: classification.category || 'Other',
-        urgency: classification.urgency || 'Medium',
-        aiReasoning: classification.aiReasoning || 'Classified via civic triage intelligence.',
+        category: classification?.category || 'Other',
+        urgency: classification?.urgency || 'Medium',
+        aiReasoning: classification?.aiReasoning || 'Classified via civic triage intelligence.',
       };
 
       const saved = await addComplaintToFirestore(complaintRecord);
@@ -221,12 +223,13 @@ export default function SubmitComplaint() {
           <div className="flex items-center justify-between mb-3">
             <label className="block text-sm font-bold text-slate-800 flex items-center gap-2">
               <FileText className="w-4 h-4 text-teal-600" />
-              Describe the Civic Problem
+              <span>Describe the Civic Problem</span>
+              <span className="text-xs font-normal text-slate-400">(Optional if photo is attached)</span>
             </label>
             <button
               type="button"
               onClick={handleTestAi}
-              disabled={aiLoading || !description.trim()}
+              disabled={aiLoading || (!description.trim() && !imageFile)}
               className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors disabled:opacity-40 cursor-pointer"
             >
               <Cpu className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
@@ -236,10 +239,9 @@ export default function SubmitComplaint() {
 
           <textarea
             rows={4}
-            required
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Describe the issue in detail (e.g. location specifics, public safety hazard, how long it has been broken)..."
+            placeholder="Describe the issue in detail (optional if attaching a clear photograph below)..."
             className="w-full text-sm p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all resize-y"
           />
 
