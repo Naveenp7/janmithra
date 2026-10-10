@@ -3,14 +3,23 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { subscribeComplaints } from '../../services/firebase.js';
 import ComplaintCard from '../../components/ComplaintCard.jsx';
-import { PlusCircle, Search, RefreshCw, Radio, Lock } from 'lucide-react';
+import {
+  PageHeader,
+  StatCard,
+  Spinner,
+  EmptyState,
+  Alert,
+  CATEGORIES,
+  STATUS_OPTIONS,
+} from '../../components/ui.jsx';
+import { PlusCircle, Search, ListChecks, Clock, Wrench, CheckCircle2, Inbox } from 'lucide-react';
 
 export default function MyComplaints() {
   const { currentUser } = useAuth();
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
-  // Filters
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,130 +28,97 @@ export default function MyComplaints() {
     if (!currentUser) {
       setComplaints([]);
       setLoading(false);
-      return;
+      return undefined;
     }
 
     setLoading(true);
-    // Realtime subscription filtered by current authenticated citizen's UID
-    const unsubscribe = subscribeComplaints(currentUser.uid, (items) => {
-      setComplaints(items);
-      setLoading(false);
-    });
+    setLoadError(null);
+    const unsubscribe = subscribeComplaints(
+      currentUser.uid,
+      (items) => {
+        setComplaints(items);
+        setLoading(false);
+      },
+      setLoadError
+    );
+    return () => unsubscribe?.();
+  }, [currentUser?.uid]);
 
-    return () => {
-      if (typeof unsubscribe === 'function') unsubscribe();
-    };
-  }, [currentUser]);
-
-  // Filtering
   const filtered = complaints.filter((c) => {
     if (statusFilter !== 'all' && c.status !== statusFilter) return false;
     if (categoryFilter !== 'all' && c.category !== categoryFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchDesc = c.description?.toLowerCase().includes(q);
-      const matchWard = c.location?.ward?.toLowerCase().includes(q);
-      const matchAddr = c.location?.address?.toLowerCase().includes(q);
-      if (!matchDesc && !matchWard && !matchAddr) return false;
+      const hay = [c.description, c.location?.ward, c.location?.address].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
     }
     return true;
   });
 
-  const categories = ['All', 'Road', 'Water', 'Electricity', 'Waste', 'Drainage', 'Other'];
-  const statuses = [
-    { key: 'all', label: 'All Statuses' },
-    { key: 'submitted', label: 'Submitted' },
-    { key: 'assigned', label: 'Assigned' },
-    { key: 'in_progress', label: 'In Progress' },
-    { key: 'resolved', label: 'Resolved' },
-  ];
-
-  if (!currentUser) {
-    return (
-      <div className="max-w-md mx-auto px-4 py-20 text-center">
-        <div className="w-16 h-16 bg-teal-50 text-teal-600 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-          <Lock className="w-8 h-8" />
-        </div>
-        <h2 className="text-xl font-bold text-slate-900 mb-2">Sign In to View Your Complaints</h2>
-        <p className="text-xs text-slate-500 mb-6">
-          Access your personal civic issue tracking dashboard and receive live resolution notifications.
-        </p>
-        <Link
-          to="/citizen/login"
-          className="inline-flex items-center gap-2 px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md transition-colors"
-        >
-          Citizen Sign In
-        </Link>
-      </div>
-    );
-  }
+  const count = (fn) => complaints.filter(fn).length;
+  const stats = {
+    total: complaints.length,
+    pending: count((c) => (c.status || 'submitted') === 'submitted'),
+    active: count((c) => c.status === 'assigned' || c.status === 'in_progress'),
+    resolved: count((c) => c.status === 'resolved'),
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-teal-700 uppercase tracking-wider mb-1">
-            <Radio className="w-3.5 h-3.5 text-teal-600 animate-pulse" />
-            <span>Live Civic Tracker</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            My Submitted Complaints
-          </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Real-time status updates synced directly with municipal field actions.
-          </p>
-        </div>
+    <div>
+      <PageHeader
+        eyebrow="My dashboard"
+        title={`Hello, ${currentUser?.name?.split(' ')[0] || 'there'}`}
+        subtitle="Follow every issue you have reported, live, until it is resolved."
+        actions={
+          <Link to="/citizen" className="btn-primary">
+            <PlusCircle className="w-4 h-4" /> Report new issue
+          </Link>
+        }
+      />
 
-        <Link
-          to="/citizen"
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl font-bold text-sm shadow-sm hover:shadow transition-all self-start sm:self-auto"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>Report New Issue</span>
-        </Link>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        <StatCard label="Total complaints" value={stats.total} icon={ListChecks} tone="slate" />
+        <StatCard label="Awaiting review" value={stats.pending} icon={Clock} tone="amber" />
+        <StatCard label="In progress" value={stats.active} icon={Wrench} tone="blue" />
+        <StatCard label="Resolved" value={stats.resolved} icon={CheckCircle2} tone="green" />
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs mb-8 space-y-4">
-        <div className="flex flex-col md:flex-row items-center gap-3">
-          {/* Search */}
-          <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+      {/* Filters */}
+      <div className="card p-3 sm:p-4 mb-5 space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
-              type="text"
+              type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by keywords, ward, or address..."
-              className="w-full text-sm pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all"
+              placeholder="Search by keyword, ward or address"
+              aria-label="Search complaints"
+              className="input pl-10"
             />
           </div>
-
-          {/* Category Dropdown */}
-          <div className="w-full md:w-48">
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all font-medium text-slate-700"
-            >
-              {categories.map((cat) => (
-                <option key={cat} value={cat.toLowerCase() === 'all' ? 'all' : cat}>
-                  {cat === 'All' ? 'All Categories' : cat}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            aria-label="Filter by category"
+            className="input sm:w-48"
+          >
+            <option value="all">All categories</option>
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
         </div>
 
-        {/* Status Pill Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 scrollbar-none">
-          {statuses.map((st) => (
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
+          {[{ key: 'all', label: 'All' }, ...STATUS_OPTIONS].map((st) => (
             <button
               key={st.key}
+              type="button"
               onClick={() => setStatusFilter(st.key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition cursor-pointer ${
                 statusFilter === st.key
-                  ? 'bg-slate-900 text-white shadow-xs'
+                  ? 'bg-brand-700 text-white'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
               }`}
             >
@@ -152,39 +128,26 @@ export default function MyComplaints() {
         </div>
       </div>
 
-      {/* Complaints List / Grid */}
+      {loadError && <Alert tone="error" className="mb-5">{loadError}</Alert>}
+
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-16">
-          <RefreshCw className="w-8 h-8 text-teal-600 animate-spin mb-3" />
-          <p className="text-sm font-medium text-slate-500">Connecting to live complaint feed...</p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center max-w-lg mx-auto">
-          <div className="w-16 h-16 bg-teal-50 text-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <PlusCircle className="w-8 h-8" />
-          </div>
-          <h3 className="text-lg font-bold text-slate-900 mb-1">No Complaints Found</h3>
-          <p className="text-sm text-slate-500 mb-6">
-            {complaints.length === 0
-              ? "You haven't filed any complaints yet. Report an issue to alert municipal authorities."
-              : 'No complaints match your current search and filter criteria.'}
-          </p>
-          <Link
-            to="/citizen"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-sm shadow-sm transition-colors"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>File a Civic Issue</span>
-          </Link>
-        </div>
+        <Spinner label="Loading your complaints…" />
+      ) : filtered.length === 0 && !loadError ? (
+        <EmptyState
+          icon={complaints.length === 0 ? PlusCircle : Inbox}
+          title={complaints.length === 0 ? 'No complaints yet' : 'No matches'}
+          text={
+            complaints.length === 0
+              ? "You haven't reported anything yet. Spotted a pothole, leak or broken light? Report it in under a minute."
+              : 'No complaints match your search and filters.'
+          }
+          actionLabel="Report an issue"
+          actionTo={complaints.length === 0 ? '/citizen' : undefined}
+        />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {filtered.map((complaint) => (
-            <ComplaintCard
-              key={complaint.complaintId}
-              complaint={complaint}
-              linkPrefix="/citizen/complaint"
-            />
+            <ComplaintCard key={complaint.complaintId} complaint={complaint} linkPrefix="/citizen/complaint" />
           ))}
         </div>
       )}

@@ -1,230 +1,183 @@
 import React, { useState, useEffect } from 'react';
 import StatusBadge from '../../components/StatusBadge.jsx';
 import UrgencyBadge from '../../components/UrgencyBadge.jsx';
-import {
-  updateComplaintStatusInFirestore,
-  assignWorkerInFirestore,
-  subscribeWorkers,
-} from '../../services/firebase.js';
-import {
-  X,
-  Sparkles,
-  UserCheck,
-  CheckCircle2,
-  MapPin,
-  Calendar,
-  ExternalLink,
-  Loader2,
-  ShieldCheck,
-} from 'lucide-react';
+import { Alert, CategoryChip, STATUS_OPTIONS, formatDate } from '../../components/ui.jsx';
+import { updateComplaintInFirestore, subscribeWorkers } from '../../services/firebase.js';
+import { X, Sparkles, UserCheck, MapPin, Calendar, ExternalLink, Loader2, ShieldCheck } from 'lucide-react';
 
+/**
+ * Complaint management panel: right-hand drawer on desktop, bottom sheet on phones.
+ */
 export default function AdminComplaintDetailModal({ complaint, onClose, onUpdated }) {
-  if (!complaint) return null;
-
   const [workers, setWorkers] = useState([]);
-  const [selectedWorker, setSelectedWorker] = useState(complaint.assignedWorker || '');
-  const [selectedStatus, setSelectedStatus] = useState(complaint.status || 'submitted');
+  const [selectedWorker, setSelectedWorker] = useState(complaint?.assignedWorker || '');
+  const [selectedStatus, setSelectedStatus] = useState(complaint?.status || 'submitted');
   const [saving, setSaving] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
+  const [feedback, setFeedback] = useState(null);
 
   useEffect(() => {
-    const unsub = subscribeWorkers((items) => {
-      setWorkers(items);
-    });
-    return () => unsub();
+    const unsub = subscribeWorkers(setWorkers);
+    return () => unsub?.();
   }, []);
+
+  // Close on Escape
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  if (!complaint) return null;
+
+  const workerValue = (w) => `${w.name} (${w.department})`;
+  const dirty =
+    selectedStatus !== (complaint.status || 'submitted') || selectedWorker !== (complaint.assignedWorker || '');
 
   const handleSave = async () => {
     setSaving(true);
-    setSuccessMsg('');
-
+    setFeedback(null);
     try {
-      // If worker changed
-      if (selectedWorker !== complaint.assignedWorker && selectedWorker) {
-        await assignWorkerInFirestore(complaint.complaintId, selectedWorker);
-      }
+      const workerChanged = selectedWorker && selectedWorker !== complaint.assignedWorker;
+      // Assigning someone to a brand-new complaint moves it to "assigned"; otherwise respect the chosen status
+      const status = workerChanged && selectedStatus === 'submitted' ? 'assigned' : selectedStatus;
 
-      // If status changed
-      if (selectedStatus !== complaint.status) {
-        await updateComplaintStatusInFirestore(complaint.complaintId, selectedStatus);
-      }
-
-      setSuccessMsg('Complaint status & assignment updated successfully!');
-      if (onUpdated) onUpdated();
-
-      setTimeout(() => {
-        onClose();
-      }, 800);
+      await updateComplaintInFirestore(complaint.complaintId, { assignedWorker: selectedWorker, status });
+      setSelectedStatus(status);
+      setFeedback({ tone: 'success', text: 'Saved. The citizen sees this update instantly.' });
+      onUpdated?.();
+      setTimeout(onClose, 700);
     } catch (err) {
       console.error('Error saving complaint:', err);
+      setFeedback({
+        tone: 'error',
+        text:
+          err?.code === 'permission-denied'
+            ? 'Permission denied. Make sure this account has role "admin" in Firestore.'
+            : 'Could not save changes. Please try again.',
+      });
     } finally {
       setSaving(false);
     }
   };
 
-  const formattedDate = complaint.createdAt
-    ? new Date(complaint.createdAt).toLocaleDateString('en-IN', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : 'Recent';
-
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative my-8 animate-in fade-in zoom-in-95 duration-150">
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-6 right-6 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-        >
-          <X className="w-5 h-5" />
-        </button>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-stretch sm:justify-end" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-slate-950/60 anim-fade" onClick={onClose} />
 
-        {/* Modal Header */}
-        <div className="flex flex-wrap items-center gap-2.5 mb-3 pr-10">
-          <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-slate-100 text-slate-800">
-            #{complaint.complaintId}
-          </span>
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
-            {complaint.category}
-          </span>
-          <UrgencyBadge urgency={complaint.urgency} size="sm" />
-          <StatusBadge status={complaint.status} size="sm" />
-        </div>
-
-        <h2 className="text-xl font-extrabold text-slate-900 leading-snug mb-2">
-          {complaint.description}
-        </h2>
-
-        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 mb-6 pb-4 border-b border-slate-100">
-          <span>Citizen: <strong>{complaint.citizenName || 'Citizen'}</strong></span>
-          {complaint.citizenEmail && (
-            <>
-              <span>•</span>
-              <span>{complaint.citizenEmail}</span>
-            </>
-          )}
-          <span>•</span>
-          <span className="flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" /> {formattedDate}
-          </span>
-          <span>•</span>
-          <span className="flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-slate-400" /> {complaint.location?.ward || 'Ward'}
-          </span>
-        </div>
-
-        {/* Success Alert */}
-        {successMsg && (
-          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            {successMsg}
+      <div className="relative bg-white w-full sm:max-w-lg max-h-[92vh] sm:max-h-none sm:h-full overflow-y-auto rounded-t-3xl sm:rounded-none shadow-2xl anim-slide-up sm:anim-drawer-right">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-white/95 backdrop-blur px-5 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-brand-700">Manage complaint</div>
+            <div className="text-xs font-mono text-slate-400 truncate">{complaint.complaintId}</div>
           </div>
-        )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-        {/* Body Content */}
-        <div className="space-y-5 text-sm">
-          {/* Photo Preview if uploaded */}
+        <div className="p-5 sm:p-6 space-y-5">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <CategoryChip category={complaint.category} />
+              <UrgencyBadge urgency={complaint.urgency} size="sm" />
+              <StatusBadge status={complaint.status} size="sm" />
+            </div>
+            <h2 className="text-lg font-extrabold text-slate-900 leading-snug">{complaint.description}</h2>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 mt-3">
+              <span>
+                By <strong className="text-slate-700">{complaint.citizenName || 'Citizen'}</strong>
+              </span>
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-slate-400" /> {formatDate(complaint.createdAt)}
+              </span>
+              <span className="flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-slate-400" /> {complaint.location?.ward || 'Ward'}
+              </span>
+            </div>
+            {complaint.citizenEmail && <div className="text-xs text-slate-400 mt-1">{complaint.citizenEmail}</div>}
+          </div>
+
           {complaint.imageUrl && (
-            <div>
-              <label className="block text-xs font-extrabold uppercase text-slate-500 mb-2">
-                Photographic Verification
-              </label>
-              <div className="relative rounded-2xl overflow-hidden border border-slate-200 max-h-56 bg-slate-100">
-                <img
-                  src={complaint.imageUrl}
-                  alt="Issue verification"
-                  className="w-full h-48 object-cover"
-                />
-                <a
-                  href={complaint.imageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="absolute bottom-2 right-2 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1 backdrop-blur-sm"
-                >
-                  <ExternalLink className="w-3 h-3" /> View Full Image
-                </a>
-              </div>
+            <div className="relative rounded-2xl overflow-hidden bg-slate-100">
+              <img src={complaint.imageUrl} alt="Issue" className="w-full h-52 object-cover" />
+              <a
+                href={complaint.imageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute bottom-2 right-2 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1"
+              >
+                <ExternalLink className="w-3 h-3" /> Full size
+              </a>
             </div>
           )}
 
-          {/* AI Reasoning Box */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-            <div className="flex items-center gap-2 text-teal-800 text-xs font-bold uppercase tracking-wider mb-1.5">
-              <Sparkles className="w-4 h-4 text-teal-600" />
-              <span>Automated AI Triage Assessment</span>
+          <div className="p-4 rounded-2xl bg-brand-50/60 border border-brand-200">
+            <div className="flex items-center gap-2 text-brand-900 text-xs font-extrabold mb-1.5">
+              <Sparkles className="w-4 h-4 text-brand-600" /> AI assessment
             </div>
-            <p className="text-xs text-slate-700 italic">
-              "{complaint.aiReasoning || 'Assessed through civic classification intelligence.'}"
+            <p className="text-sm text-slate-700 leading-relaxed">
+              {complaint.aiReasoning || 'Assessed through civic classification intelligence.'}
             </p>
           </div>
 
-          {/* Assignment & Status Controls */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-teal-50/40 border border-teal-100">
-            {/* Worker Assignment Dropdown */}
+          {complaint.location?.address && (
+            <div className="text-xs text-slate-500">
+              <span className="font-bold text-slate-700">Address: </span>
+              {complaint.location.address}
+            </div>
+          )}
+
+          <div className="space-y-4 p-4 rounded-2xl border border-slate-200">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                <UserCheck className="w-4 h-4 text-teal-700" />
-                Assign Field Staff
+              <label className="label flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-brand-700" /> Assign field staff
               </label>
-              <select
-                value={selectedWorker}
-                onChange={(e) => setSelectedWorker(e.target.value)}
-                className="w-full text-xs font-medium px-3 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-slate-800 shadow-xs cursor-pointer"
-              >
-                <option value="">-- Select Field Worker --</option>
+              <select value={selectedWorker} onChange={(e) => setSelectedWorker(e.target.value)} className="input">
+                <option value="">— Unassigned —</option>
+                {/* keep a legacy/removed assignee visible so it isn't silently dropped */}
+                {complaint.assignedWorker && !workers.some((w) => workerValue(w) === complaint.assignedWorker) && (
+                  <option value={complaint.assignedWorker}>{complaint.assignedWorker}</option>
+                )}
                 {workers.map((w) => (
-                  <option key={w.workerId} value={`${w.name} (${w.department})`}>
-                    {w.name} — {w.department} ({w.phone || 'Staff'})
+                  <option key={w.workerId} value={workerValue(w)}>
+                    {w.name} — {w.department}
+                    {w.phone ? ` (${w.phone})` : ''}
                   </option>
                 ))}
               </select>
             </div>
-
-            {/* Status Selector */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-teal-700" />
-                Update Resolution Status
+              <label className="label flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-brand-700" /> Status
               </label>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full text-xs font-semibold px-3 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-slate-800 shadow-xs cursor-pointer"
-              >
-                <option value="submitted">Submitted</option>
-                <option value="assigned">Assigned</option>
-                <option value="in_progress">In Progress</option>
-                <option value="resolved">Resolved</option>
+              <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="input">
+                {STATUS_OPTIONS.map((o) => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
               </select>
             </div>
           </div>
+
+          {feedback && <Alert tone={feedback.tone}>{feedback.text}</Alert>}
         </div>
 
-        {/* Modal Actions */}
-        <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-          >
+        <div className="sticky bottom-0 bg-white border-t border-slate-100 px-5 sm:px-6 py-4 flex items-center justify-end gap-3">
+          <button type="button" onClick={onClose} className="btn-secondary">
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shadow-sm flex items-center gap-2 disabled:opacity-60 cursor-pointer"
-          >
+          <button type="button" onClick={handleSave} disabled={saving || !dirty} className="btn-primary">
             {saving ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Saving...
+                <Loader2 className="w-4 h-4 animate-spin" /> Saving…
               </>
             ) : (
-              'Save & Broadcast Update'
+              'Save changes'
             )}
           </button>
         </div>

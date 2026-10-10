@@ -1,13 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged,
-} from 'firebase/auth';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import {
   getFirestore,
   collection,
@@ -68,12 +60,34 @@ export { auth, db, googleProvider };
 // REAL-TIME FIRESTORE COMPLAINTS SUBSCRIPTIONS
 // =========================================================================
 
+function normalizeComplaint(docSnap) {
+  const data = docSnap.data();
+  const toIso = (v) => (v?.toDate ? v.toDate().toISOString() : v || null);
+  return {
+    complaintId: docSnap.id,
+    ...data,
+    createdAt: toIso(data.createdAt) || new Date().toISOString(),
+    updatedAt: toIso(data.updatedAt) || new Date().toISOString(),
+  };
+}
+
+function describeFirestoreError(error) {
+  if (error?.code === 'permission-denied') {
+    return 'You do not have permission to view this data. Please sign in again or contact support.';
+  }
+  if (error?.code === 'failed-precondition') {
+    return 'The database needs an index for this query. Check the browser console for the link to create it.';
+  }
+  return 'Could not load data. Please check your connection and try again.';
+}
+
 /**
  * Subscribe to complaints.
  * If citizenId is provided, filters for that citizen; otherwise delivers all complaints (for Authority/Admin).
  * Real-time callback triggers automatically on any Firestore change.
+ * `onError` receives a user-presentable message if the listener fails.
  */
-export function subscribeComplaints(citizenId, callback) {
+export function subscribeComplaints(citizenId, callback, onError) {
   if (!isFirebaseConfigured || !db) {
     // If Firebase is not configured, deliver empty list
     callback([]);
@@ -90,30 +104,44 @@ export function subscribeComplaints(citizenId, callback) {
       q,
       (snapshot) => {
         const list = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          list.push({
-            complaintId: docSnap.id,
-            ...data,
-            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt || new Date().toISOString(),
-            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt || new Date().toISOString(),
-          });
-        });
+        snapshot.forEach((docSnap) => list.push(normalizeComplaint(docSnap)));
         // Sort newest first if ordered query was skipped
         list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         callback(list);
       },
       (error) => {
         console.error('[Firestore] Realtime subscription error:', error);
+        if (onError) onError(describeFirestoreError(error));
         callback([]);
       }
     );
     return unsubscribe;
   } catch (error) {
     console.error('[Firestore] Error building query:', error);
+    if (onError) onError(describeFirestoreError(error));
     callback([]);
     return () => {};
   }
+}
+
+/**
+ * Subscribe to a single complaint document (live). Calls back with `null` when it does not exist.
+ */
+export function subscribeComplaint(complaintId, callback, onError) {
+  if (!isFirebaseConfigured || !db) {
+    callback(null);
+    return () => {};
+  }
+
+  return onSnapshot(
+    doc(db, 'complaints', complaintId),
+    (snap) => callback(snap.exists() ? normalizeComplaint(snap) : null),
+    (error) => {
+      console.error('[Firestore] Complaint subscription error:', error);
+      if (onError) onError(describeFirestoreError(error));
+      callback(null);
+    }
+  );
 }
 
 /**
@@ -169,6 +197,21 @@ export async function assignWorkerInFirestore(complaintId, workerName) {
   return true;
 }
 
+/**
+ * Save assignment + status in one atomic write so one never clobbers the other.
+ */
+export async function updateComplaintInFirestore(complaintId, { assignedWorker, status }) {
+  if (!isFirebaseConfigured || !db) {
+    throw new Error('Firebase is not configured.');
+  }
+  await updateDoc(doc(db, 'complaints', complaintId), {
+    assignedWorker: assignedWorker || null,
+    status,
+    updatedAt: serverTimestamp(),
+  });
+  return true;
+}
+
 // =========================================================================
 // FIELD WORKERS (FIRESTORE)
 // =========================================================================
@@ -186,10 +229,10 @@ export function subscribeWorkers(callback) {
     const workersCol = collection(db, 'workers');
     const unsubscribe = onSnapshot(
       workersCol,
-      async (snapshot) => {
+      (snapshot) => {
         if (snapshot.empty) {
           // Initialize default workers if collection is brand new
-          await initializeDefaultWorkersIfEmpty();
+          initializeDefaultWorkersIfEmpty(); // fire-and-forget; the listener re-fires once written
           callback(DEFAULT_LSG_WORKERS);
         } else {
           const list = [];
@@ -238,8 +281,10 @@ export async function deleteWorkerFromFirestore(workerId) {
 /**
  * Helper to initialize standard departmental staff if collection is empty
  */
+let seedingWorkers = false;
 export async function initializeDefaultWorkersIfEmpty() {
-  if (!isFirebaseConfigured || !db) return;
+  if (!isFirebaseConfigured || !db || seedingWorkers) return;
+  seedingWorkers = true;
   try {
     const snap = await getDocs(collection(db, 'workers'));
     if (snap.empty) {
@@ -255,5 +300,7 @@ export async function initializeDefaultWorkersIfEmpty() {
     }
   } catch (e) {
     console.warn('[Firestore] Worker initialization skipped:', e);
+  } finally {
+    seedingWorkers = false;
   }
 }

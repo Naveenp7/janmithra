@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { subscribeComplaints } from '../../services/firebase.js';
+import { subscribeComplaint } from '../../services/firebase.js';
 import StatusBadge from '../../components/StatusBadge.jsx';
 import UrgencyBadge from '../../components/UrgencyBadge.jsx';
+import { Spinner, EmptyState, Alert, CategoryChip, formatDate } from '../../components/ui.jsx';
 import {
   ArrowLeft,
   Calendar,
@@ -15,294 +16,203 @@ import {
   Radio,
   ExternalLink,
   ShieldAlert,
+  Check,
 } from 'lucide-react';
 
 const TIMELINE_STEPS = [
-  {
-    key: 'submitted',
-    title: 'Submitted',
-    desc: 'Issue filed by citizen and logged into municipal database.',
-    icon: Clock,
-  },
-  {
-    key: 'assigned',
-    title: 'Assigned',
-    desc: 'Allocated to specialized field engineer.',
-    icon: UserCheck,
-  },
-  {
-    key: 'in_progress',
-    title: 'In Progress',
-    desc: 'Field crew active on site performing repairs.',
-    icon: Wrench,
-  },
-  {
-    key: 'resolved',
-    title: 'Resolved',
-    desc: 'Issue verified and resolved according to citizen charter.',
-    icon: CheckCircle2,
-  },
+  { key: 'submitted', title: 'Submitted', desc: 'Your report is logged with the municipality.', icon: Clock },
+  { key: 'assigned', title: 'Assigned', desc: 'Allocated to a field engineer.', icon: UserCheck },
+  { key: 'in_progress', title: 'In progress', desc: 'The crew is working on site.', icon: Wrench },
+  { key: 'resolved', title: 'Resolved', desc: 'The issue has been fixed.', icon: CheckCircle2 },
 ];
 
-const STATUS_ORDER = ['submitted', 'assigned', 'in_progress', 'resolved'];
+const STATUS_ORDER = TIMELINE_STEPS.map((s) => s.key);
+
+function InfoRow({ label, children }) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-2.5 border-b border-slate-100 last:border-0 text-sm">
+      <span className="text-slate-500 flex-shrink-0">{label}</span>
+      <span className="font-semibold text-slate-900 text-right break-words min-w-0">{children}</span>
+    </div>
+  );
+}
 
 export default function ComplaintDetail() {
   const { id } = useParams();
   const [complaint, setComplaint] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
-    // Subscribe to complaints to get real-time status updates without refresh
-    const unsubscribe = subscribeComplaints(null, (allComplaints) => {
-      const found = allComplaints.find((c) => c.complaintId === id);
-      if (found) {
+    setLoading(true);
+    setLoadError(null);
+    // Live subscription to just this one document
+    const unsubscribe = subscribeComplaint(
+      id,
+      (found) => {
         setComplaint(found);
-      }
-      setLoading(false);
-    });
-
-    return () => {
-      if (typeof unsubscribe === 'function') unsubscribe();
-    };
+        setLoading(false);
+      },
+      setLoadError
+    );
+    return () => unsubscribe?.();
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-16 text-center">
-        <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-sm font-semibold text-slate-600">Connecting to live complaint feed...</p>
-      </div>
-    );
-  }
+  if (loading) return <Spinner label="Loading complaint…" />;
 
   if (!complaint) {
     return (
-      <div className="max-w-md mx-auto px-4 py-16 text-center">
-        <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <ShieldAlert className="w-8 h-8" />
-        </div>
-        <h2 className="text-xl font-bold text-slate-900 mb-2">Complaint Not Found</h2>
-        <p className="text-sm text-slate-500 mb-6">
-          The requested complaint identifier (#{id}) could not be located in the municipal registry.
-        </p>
-        <Link
-          to="/citizen/my-complaints"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-semibold"
-        >
-          <ArrowLeft className="w-4 h-4" /> Return to My Complaints
-        </Link>
+      <div className="pt-6">
+        {loadError && <Alert tone="error" className="mb-5 max-w-lg mx-auto">{loadError}</Alert>}
+        <EmptyState
+          icon={ShieldAlert}
+          title="Complaint not found"
+          text={`We couldn't find complaint #${id}. It may have been removed, or it belongs to another account.`}
+          actionLabel="Back to my complaints"
+          actionTo="/citizen/my-complaints"
+        />
       </div>
     );
   }
 
-  const currentStepIndex = STATUS_ORDER.indexOf(complaint.status || 'submitted');
-
-  const formattedDate = complaint.createdAt
-    ? new Date(complaint.createdAt).toLocaleDateString('en-IN', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : 'Recent';
+  const status = complaint.status || 'submitted';
+  const currentStep = Math.max(0, STATUS_ORDER.indexOf(status));
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* Top Nav Breadcrumb */}
-      <div className="flex items-center justify-between gap-4 mb-6">
+    <div className="max-w-4xl mx-auto">
+      <div className="flex items-center justify-between gap-4 mb-5">
         <Link
           to="/citizen/my-complaints"
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Complaints
+          <ArrowLeft className="w-4 h-4" /> My complaints
         </Link>
-        <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
-          <Radio className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-          <span>Live Synced</span>
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-brand-700">
+          <Radio className="w-3.5 h-3.5 animate-pulse" /> Live updates
+        </span>
+      </div>
+
+      {/* Summary */}
+      <div className="card p-5 sm:p-6 mb-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <CategoryChip category={complaint.category} />
+            <UrgencyBadge urgency={complaint.urgency} size="sm" />
+          </div>
+          <StatusBadge status={status} />
+        </div>
+
+        <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 leading-snug">{complaint.description}</h1>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-500 mt-3">
+          <span className="flex items-center gap-1.5">
+            <Calendar className="w-4 h-4 text-slate-400" /> Reported {formatDate(complaint.createdAt)}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <MapPin className="w-4 h-4 text-slate-400" /> {complaint.location?.ward || 'Local ward'}
+          </span>
+          <span className="font-mono text-slate-400">ID {complaint.complaintId}</span>
         </div>
       </div>
 
-      {/* Main Card */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden mb-8">
-        {/* Header Ribbon */}
-        <div className="p-6 sm:p-8 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-teal-50/30">
-          <div className="flex flex-wrap items-start justify-between gap-4 mb-3">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-md bg-slate-200 text-slate-800">
-                #{complaint.complaintId}
-              </span>
-              <span className="text-xs font-bold px-3 py-1 rounded-full bg-teal-100 text-teal-800 border border-teal-200">
-                {complaint.category}
-              </span>
-              <UrgencyBadge urgency={complaint.urgency} />
-            </div>
-            <StatusBadge status={complaint.status} size="lg" />
-          </div>
-
-          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 leading-snug mb-2">
-            {complaint.description}
-          </h1>
-
-          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 mt-3">
-            <span className="flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              Reported on {formattedDate}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <MapPin className="w-4 h-4 text-slate-400" />
-              {complaint.location?.ward || 'Local Ward'}
-            </span>
-          </div>
-        </div>
-
-        {/* Live 4-Step Visual Status Timeline */}
-        <div className="p-6 sm:p-8 bg-slate-50/50 border-b border-slate-100">
-          <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-6 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-teal-600" />
-            Resolution Progress Timeline
-          </h3>
-
-          <div className="relative">
-            {/* Desktop Horizontal Timeline */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative z-10">
-              {TIMELINE_STEPS.map((step, idx) => {
-                const Icon = step.icon;
-                const isCompleted = idx <= currentStepIndex;
-                const isCurrent = idx === currentStepIndex;
-
-                return (
-                  <div key={step.key} className="flex md:flex-col items-start gap-3">
-                    {/* Circle icon */}
-                    <div
-                      className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all shadow-sm ${
-                        isCompleted
-                          ? isCurrent
-                            ? 'bg-teal-600 text-white ring-4 ring-teal-100 shadow-md scale-105'
-                            : 'bg-emerald-600 text-white'
-                          : 'bg-slate-200 text-slate-400'
+      {/* Timeline */}
+      <div className="card p-5 sm:p-6 mb-5">
+        <h2 className="text-sm font-extrabold text-slate-900 mb-5">Progress</h2>
+        <ol className="grid grid-cols-1 sm:grid-cols-4 gap-5 sm:gap-3">
+          {TIMELINE_STEPS.map((step, idx) => {
+            const done = idx < currentStep || (idx === currentStep && status === 'resolved');
+            const current = idx === currentStep && !done;
+            const Icon = step.icon;
+            return (
+              <li key={step.key} className="relative flex sm:flex-col gap-3 sm:gap-2.5">
+                {/* connector */}
+                {idx < TIMELINE_STEPS.length - 1 && (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className={`hidden sm:block absolute top-5 left-12 right-[-0.75rem] h-0.5 ${
+                        idx < currentStep ? 'bg-brand-500' : 'bg-slate-200'
                       }`}
-                    >
-                      <Icon className="w-5 h-5" />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-sm font-bold ${
-                            isCompleted ? 'text-slate-900' : 'text-slate-400'
-                          }`}
-                        >
-                          {step.title}
-                        </span>
-                        {isCurrent && (
-                          <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 font-bold">
-                            Active
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                        {step.key === 'assigned' && complaint.assignedWorker
-                          ? `Assigned to ${complaint.assignedWorker}`
-                          : step.desc}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Details Body: Evidence Image, AI Explainability, Location */}
-        <div className="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Left Column: Photo Evidence */}
-          <div>
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-3">
-              Photo Verification
-            </h3>
-            {complaint.imageUrl ? (
-              <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 group relative">
-                <img
-                  src={complaint.imageUrl}
-                  alt="Civic Issue Verification"
-                  className="w-full h-64 object-cover"
-                />
-                <a
-                  href={complaint.imageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="absolute bottom-3 right-3 px-3 py-1.5 bg-slate-950/80 hover:bg-slate-950 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 backdrop-blur-sm transition-colors shadow"
+                    />
+                    <span
+                      aria-hidden="true"
+                      className={`sm:hidden absolute left-5 top-11 -bottom-5 w-0.5 -translate-x-1/2 ${
+                        idx < currentStep ? 'bg-brand-500' : 'bg-slate-200'
+                      }`}
+                    />
+                  </>
+                )}
+                <div
+                  className={`relative w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    done
+                      ? 'bg-brand-600 text-white'
+                      : current
+                      ? 'bg-brand-100 text-brand-700 ring-4 ring-brand-50 border border-brand-300'
+                      : 'bg-slate-100 text-slate-400'
+                  }`}
                 >
-                  <ExternalLink className="w-3.5 h-3.5" /> Open Full Image
-                </a>
-              </div>
-            ) : (
-              <div className="h-44 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 text-xs p-6 text-center">
-                <span>No photographic verification was uploaded with this complaint.</span>
-              </div>
-            )}
-          </div>
-
-          {/* Right Column: AI Reasoning & Municipal Assignment */}
-          <div className="space-y-6">
-            {/* AI Decision Intelligence Card */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-teal-50 via-slate-50 to-emerald-50 border border-teal-200/80 shadow-2xs">
-              <div className="flex items-center gap-2 text-teal-800 text-xs font-extrabold uppercase tracking-wider mb-2">
-                <Sparkles className="w-4 h-4 text-teal-600" />
-                <span>Automated AI Triage Assessment</span>
-              </div>
-              <div className="space-y-2 text-xs text-slate-700">
-                <div className="flex items-center justify-between pb-2 border-b border-teal-100">
-                  <span className="font-semibold text-slate-600">Assigned Category:</span>
-                  <span className="font-bold text-slate-900">{complaint.category}</span>
+                  {done ? <Check className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
                 </div>
-                <div className="flex items-center justify-between pb-2 border-b border-teal-100">
-                  <span className="font-semibold text-slate-600">Predicted Urgency:</span>
-                  <span className="font-bold text-slate-900">{complaint.urgency}</span>
-                </div>
-                <div className="pt-1">
-                  <span className="font-semibold text-slate-600 block mb-1">Reasoning Analysis:</span>
-                  <p className="italic text-slate-800 bg-white/70 p-2.5 rounded-lg border border-teal-100">
-                    "{complaint.aiReasoning || 'Classified by civic triage intelligence.'}"
+                <div className="min-w-0">
+                  <div className={`text-sm font-bold ${done || current ? 'text-slate-900' : 'text-slate-400'}`}>
+                    {step.title}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                    {step.key === 'assigned' && complaint.assignedWorker
+                      ? `Assigned to ${complaint.assignedWorker}`
+                      : step.desc}
                   </p>
                 </div>
-              </div>
-            </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
 
-            {/* Location & Assigned Field Crew */}
-            <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3 text-xs">
-              <h4 className="font-extrabold uppercase tracking-wider text-slate-500 mb-2">
-                Municipal Routing Details
-              </h4>
-              <div className="flex items-start justify-between gap-2">
-                <span className="font-semibold text-slate-600">Ward / Division:</span>
-                <span className="font-medium text-slate-900 text-right">
-                  {complaint.location?.ward || 'General Ward'}
-                </span>
-              </div>
-              {complaint.location?.address && (
-                <div className="flex items-start justify-between gap-2">
-                  <span className="font-semibold text-slate-600">Landmark / Address:</span>
-                  <span className="font-medium text-slate-900 text-right">
-                    {complaint.location?.address}
-                  </span>
-                </div>
-              )}
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-slate-600">Geo Coordinates:</span>
-                <span className="font-mono text-slate-700">
-                  {complaint.location?.lat}, {complaint.location?.lng}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                <span className="font-semibold text-slate-600">Assigned Engineer:</span>
-                <span className="font-bold text-blue-700">
-                  {complaint.assignedWorker || 'Pending Assignment'}
-                </span>
-              </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Photo */}
+        <div className="card p-5 sm:p-6">
+          <h2 className="text-sm font-extrabold text-slate-900 mb-3">Photo</h2>
+          {complaint.imageUrl ? (
+            <div className="relative rounded-xl overflow-hidden bg-slate-100">
+              <img src={complaint.imageUrl} alt="Reported issue" className="w-full h-60 object-cover" />
+              <a
+                href={complaint.imageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute bottom-3 right-3 px-3 py-1.5 bg-slate-950/80 hover:bg-slate-950 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Open full size
+              </a>
             </div>
+          ) : (
+            <div className="h-40 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 text-sm text-center px-6">
+              No photo was attached to this report.
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-5">
+          {/* AI assessment */}
+          <div className="card p-5 sm:p-6 bg-brand-50/60 border-brand-200">
+            <h2 className="text-sm font-extrabold text-brand-900 mb-2 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-brand-600" /> AI assessment
+            </h2>
+            <p className="text-sm text-slate-700 leading-relaxed">
+              {complaint.aiReasoning || 'Classified by the civic triage assistant.'}
+            </p>
+          </div>
+
+          {/* Routing */}
+          <div className="card p-5 sm:p-6">
+            <h2 className="text-sm font-extrabold text-slate-900 mb-1">Routing details</h2>
+            <InfoRow label="Ward">{complaint.location?.ward || 'General ward'}</InfoRow>
+            {complaint.location?.address && <InfoRow label="Address">{complaint.location.address}</InfoRow>}
+            <InfoRow label="Assigned to">
+              <span className={complaint.assignedWorker ? 'text-blue-700' : 'text-slate-400'}>
+                {complaint.assignedWorker || 'Pending assignment'}
+              </span>
+            </InfoRow>
           </div>
         </div>
       </div>

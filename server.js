@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import classifyHandler from './api/classify-complaint.js';
 import healthHandler from './api/health.js';
+import publicStatsHandler from './api/public-stats.js';
 
 // Load environment variables from .env
 dotenv.config();
@@ -24,6 +25,11 @@ app.all('/api/classify-complaint', (req, res) => {
 app.all('/api/health', (req, res) => {
   dotenv.config({ override: true });
   healthHandler(req, res);
+});
+
+app.all('/api/public-stats', (req, res) => {
+  dotenv.config({ override: true });
+  publicStatsHandler(req, res);
 });
 
 // Root ping

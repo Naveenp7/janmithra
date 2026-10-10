@@ -62,3 +62,7 @@ scratch/
 scratch_*.js
 .system_generated/
 .gemini/
+
+# Firebase service-account keys (server secrets)
+serviceAccount*.json
+*-firebase-adminsdk-*.json

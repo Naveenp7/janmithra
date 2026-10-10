@@ -92,14 +92,18 @@ export function AuthProvider({ children }) {
     await updateProfile(cred.user, { displayName: name });
 
     if (db) {
-      await setDoc(doc(db, 'users', cred.user.uid), {
-        uid: cred.user.uid,
-        name,
-        email,
-        phone,
-        role: 'citizen',
-        createdAt: serverTimestamp(),
-      });
+      await setDoc(
+        doc(db, 'users', cred.user.uid),
+        {
+          uid: cred.user.uid,
+          name,
+          email,
+          phone,
+          role: 'citizen',
+          createdAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
     }
 
     const userObj = {
@@ -147,13 +151,13 @@ export function AuthProvider({ children }) {
   /**
    * Citizen Google Sign In
    */
-  const loginWithGoogle = async (expectedRole = 'citizen') => {
+  const loginWithGoogle = async () => {
     if (!isFirebaseConfigured || !auth || !googleProvider) {
       throw new Error('Firebase is not configured. Please add Firebase keys to .env');
     }
 
     const cred = await signInWithPopup(auth, googleProvider);
-    let role = expectedRole;
+    let role = 'citizen';
     let userDetails = {};
 
     if (db) {
@@ -161,13 +165,13 @@ export function AuthProvider({ children }) {
       const snap = await getDoc(userRef);
       if (snap.exists()) {
         userDetails = snap.data();
-        role = userDetails.role || expectedRole;
+        role = userDetails.role || 'citizen';
       } else {
         userDetails = {
           uid: cred.user.uid,
           name: cred.user.displayName,
           email: cred.user.email,
-          role: expectedRole,
+          role: 'citizen',
           createdAt: serverTimestamp(),
         };
         await setDoc(userRef, userDetails);
@@ -185,46 +189,9 @@ export function AuthProvider({ children }) {
   };
 
   /**
-   * Authority / Admin Sign Up (Registers official in Firebase Auth and assigns role: 'admin')
-   */
-  const signupAdmin = async (email, password, name, department = 'General Administration', secretCode = '') => {
-    if (!isFirebaseConfigured || !auth) {
-      throw new Error('Firebase is not configured. Please add Firebase keys to .env');
-    }
-
-    // Optional admin registration key validation (for safety)
-    const VALID_ADMIN_KEYS = ['ADMIN-KEY-2026', 'LSG-KERALA-ADMIN'];
-    if (secretCode && !VALID_ADMIN_KEYS.includes(secretCode.trim())) {
-      throw new Error('Invalid Administrator Authorization Key.');
-    }
-
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(cred.user, { displayName: name });
-
-    if (db) {
-      await setDoc(doc(db, 'users', cred.user.uid), {
-        uid: cred.user.uid,
-        name,
-        email,
-        department,
-        role: 'admin',
-        createdAt: serverTimestamp(),
-      });
-    }
-
-    const userObj = {
-      uid: cred.user.uid,
-      name,
-      email,
-      department,
-      role: 'admin',
-    };
-    setCurrentUser(userObj);
-    return userObj;
-  };
-
-  /**
-   * Authority / Admin Sign In (Strictly checks Firestore for role === 'admin')
+   * Authority / Admin Sign In (Strictly checks Firestore for role === 'admin').
+   * Admin accounts are provisioned manually in the Firebase console (Auth user + users/{uid} with role: 'admin');
+   * there is intentionally no self-service admin registration.
    */
   const loginAdmin = async (email, password) => {
     if (!isFirebaseConfigured || !auth) {
@@ -279,7 +246,6 @@ export function AuthProvider({ children }) {
     signupCitizen,
     loginCitizen,
     loginWithGoogle,
-    signupAdmin,
     loginAdmin,
     logout,
   };

@@ -28,8 +28,8 @@ const createPinIcon = () => {
           transform: translateX(-50%);
           width: 26px;
           height: 11px;
-          background: rgba(13, 148, 136, 0.4);
-          border: 2px solid #0d9488;
+          background: rgba(24, 106, 66, 0.4);
+          border: 2px solid #186a42;
           border-radius: 50%;
           animation: pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
         "></div>
@@ -55,10 +55,10 @@ const createPinIcon = () => {
           filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));
         ">
           <svg viewBox="0 0 36 48" width="38" height="48" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M18 0C8.05887 0 0 8.05887 0 18C0 30.5 16 46 18 48C20 46 36 30.5 36 18C36 8.05887 27.9411 0 18 0Z" fill="#0d9488"/>
-            <path d="M18 2C9.16344 2 2 9.16344 2 18C2 28.5 16 43.5 18 45.5C20 43.5 34 28.5 34 18C34 9.16344 26.8366 2 18 2Z" fill="#0f766e"/>
+            <path d="M18 0C8.05887 0 0 8.05887 0 18C0 30.5 16 46 18 48C20 46 36 30.5 36 18C36 8.05887 27.9411 0 18 0Z" fill="#186a42"/>
+            <path d="M18 2C9.16344 2 2 9.16344 2 18C2 28.5 16 43.5 18 45.5C20 43.5 34 28.5 34 18C34 9.16344 26.8366 2 18 2Z" fill="#0f4230"/>
             <circle cx="18" cy="18" r="8" fill="#ffffff"/>
-            <circle cx="18" cy="18" r="4.5" fill="#0d9488"/>
+            <circle cx="18" cy="18" r="4.5" fill="#186a42"/>
           </svg>
         </div>
       </div>
@@ -375,7 +375,7 @@ export default function LocationPicker({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <label className="block text-sm font-bold text-slate-800 flex items-center gap-1.5">
           <MapIcon className="w-4 h-4 text-teal-600" />
-          <span>Location & Ward Pin-point</span>
+          <span>Pin location</span>
           {geocoding && <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />}
         </label>
 
@@ -384,7 +384,7 @@ export default function LocationPicker({
             <button
               type="button"
               onClick={handleClearLocation}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-all cursor-pointer "
               title="Reset location and clear fields"
             >
               <RotateCcw className="w-3 h-3 text-slate-500" />
@@ -396,7 +396,7 @@ export default function LocationPicker({
             type="button"
             onClick={handleGpsClick}
             disabled={gpsLoading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-all shadow-2xs hover:shadow-xs disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-all  disabled:opacity-50 cursor-pointer"
           >
             {gpsLoading ? (
               <>
@@ -430,7 +430,7 @@ export default function LocationPicker({
               if (suggestions.length > 0) setShowSuggestions(true);
             }}
             placeholder="Search your town, ward, or landmark in Kerala (e.g. Edappally, Palarivattom)..."
-            className="w-full text-xs pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white text-slate-800 font-medium transition-all shadow-2xs"
+            className="w-full text-xs pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white text-slate-800 font-medium transition-all "
           />
           {searching && (
             <Loader2 className="w-3.5 h-3.5 text-teal-600 animate-spin absolute right-3" />
@@ -478,7 +478,7 @@ export default function LocationPicker({
             key={dist.name}
             type="button"
             onClick={() => handleSelectDistrict(dist)}
-            className="px-2.5 py-1 rounded-lg bg-teal-50/80 hover:bg-teal-100 text-teal-800 font-medium whitespace-nowrap border border-teal-200/70 transition-all flex-shrink-0 cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+            className="px-2.5 py-1 rounded-lg bg-teal-50/80 hover:bg-teal-100 text-teal-800 font-medium whitespace-nowrap border border-teal-200/70 transition-all flex-shrink-0 cursor-pointer  active:scale-95"
           >
             {dist.name.split(' / ')[0]}
           </button>
@@ -489,7 +489,7 @@ export default function LocationPicker({
         <div
           className={`flex items-start gap-2.5 p-3 rounded-xl text-xs ${
             gpsNote.type === 'warning'
-              ? 'text-amber-950 bg-amber-50 border border-amber-300 shadow-2xs'
+              ? 'text-amber-950 bg-amber-50 border border-amber-300 '
               : 'text-slate-700 bg-slate-100 border border-slate-200'
           }`}
         >
@@ -504,7 +504,7 @@ export default function LocationPicker({
       )}
 
       {/* Interactive Leaflet Map */}
-      <div className="relative h-64 w-full rounded-2xl overflow-hidden border border-slate-300 shadow-inner z-0">
+      <div className="relative h-64 sm:h-72 w-full rounded-2xl overflow-hidden border border-slate-300 shadow-inner z-0">
         <MapContainer
           center={[currentPos.lat, currentPos.lng]}
           zoom={14}

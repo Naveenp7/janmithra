@@ -1,0 +1,47 @@
+rules_version = '2';
+
+// Deploy with:  firebase deploy --only firestore:rules
+// (or paste into Firebase console → Firestore Database → Rules)
+//
+// Admin accounts are created manually in the Firebase console:
+//   1. Authentication → add the user (email + password)
+//   2. Firestore → users/{that user's uid} → set role: "admin" (and optionally name, department)
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ---- Users ----
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      // Users may only ever create/modify their own profile as a citizen — never grant themselves a role.
+      allow create: if signedIn() && request.auth.uid == userId && request.resource.data.role == 'citizen';
+      allow update: if signedIn() && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role;
+      allow update: if isAdmin();
+    }
+
+    // ---- Complaints ----
+    match /complaints/{complaintId} {
+      allow read: if signedIn() && (resource.data.citizenId == request.auth.uid || isAdmin());
+      allow create: if signedIn()
+        && request.resource.data.citizenId == request.auth.uid
+        && request.resource.data.status == 'submitted';
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // ---- Field workers (admin-only) ----
+    match /workers/{workerId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

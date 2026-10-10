@@ -8,12 +8,8 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
  * Calls backend NVIDIA NIM classifier endpoint
  */
 export async function classifyComplaint(description, hasImage = false, imageUrl = null) {
-  const actualImageUrl =
-    typeof hasImage === 'string' && hasImage.startsWith('http')
-      ? hasImage
-      : typeof imageUrl === 'string' && imageUrl.startsWith('http')
-      ? imageUrl
-      : null;
+  // Only publicly reachable https URLs can be sent to the vision model (never blob: previews)
+  const actualImageUrl = typeof imageUrl === 'string' && imageUrl.startsWith('https://') ? imageUrl : null;
   const isImagePresent = Boolean(hasImage || actualImageUrl);
 
   try {
@@ -23,7 +19,7 @@ export async function classifyComplaint(description, hasImage = false, imageUrl 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        description,
+        description: (description || '').slice(0, 1000),
         hasImage: isImagePresent,
         imageUrl: actualImageUrl,
       }),
@@ -67,4 +63,18 @@ export async function checkApiHealth() {
   } catch (e) {
     return { status: 'unreachable' };
   }
+}
+
+/**
+ * Public, aggregate-only statistics for the whole system (served by /api/public-stats)
+ */
+export async function fetchPublicStats() {
+  const res = await fetch(`${API_BASE}/api/public-stats`);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(body.message || 'Could not load public statistics.');
+    err.code = body.error || 'failed';
+    throw err;
+  }
+  return body;
 }

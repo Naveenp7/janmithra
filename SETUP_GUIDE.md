@@ -198,16 +198,14 @@ Follow this checklist to test the full live system with Firebase Authentication:
    ```
    Open `http://localhost:5173` in your browser.
 
-2. **Register & Sign In as an LSG Authority (Admin):**
-   - Click **Authority View** in the top right (or navigate to `http://localhost:5173/admin/login`).
-   - Click the **Register Officer** tab.
-   - Enter your official details:
-     - Name: e.g. `K. S. Narayanan`
-     - Department: e.g. `Road Infrastructure` (or your choice)
-     - LSGD Security Key: `LSG-KERALA-ADMIN`
-     - Email: `officer@lsg.kerala.gov.in`
-     - Password: `password123`
-   - Click **Register Authority Account**.
+2. **Create & Sign In as an LSG Authority (Admin):**
+   Admin accounts are created by you in the Firebase console (there is no self-service admin sign-up).
+   - **Firebase console → Authentication → Add user** (e.g. `officer@lsg.kerala.gov.in` + a password) and copy the user's **UID**.
+   - **Firestore Database → `users` → Add document** with Document ID = that UID and fields:
+     `role` = `admin` (string), `name` = your name, `email`, and optionally `department`.
+     (Create this document *before* the first sign-in, otherwise the app creates a citizen profile you'd need to edit.)
+   - **Publish the security rules:** paste [`firestore.rules`](firestore.rules) into Firestore → Rules (or `firebase deploy --only firestore:rules`).
+   - Navigate to `http://localhost:5173/admin/login` and sign in with that email and password.
    - You are now logged in as an official administrator in the **Authority Dashboard** (`/admin`).
    - Notice the database starts completely clean with 0 complaints.
    - Click **Field Staff** to view or add municipal engineers for task dispatching.

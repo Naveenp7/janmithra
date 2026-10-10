@@ -5,6 +5,7 @@ import { subscribeComplaints } from '../../services/firebase.js';
 import StatusBadge from '../../components/StatusBadge.jsx';
 import UrgencyBadge from '../../components/UrgencyBadge.jsx';
 import AdminComplaintDetailModal from './AdminComplaintDetailModal.jsx';
+import { PageHeader, Alert } from '../../components/ui.jsx';
 import {
   MapPin,
   RefreshCw,
@@ -70,12 +71,17 @@ export default function AdminMapView() {
   const [loading, setLoading] = useState(true);
   const [activeComplaint, setActiveComplaint] = useState(null);
   const [selectedUrgency, setSelectedUrgency] = useState('all');
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
-    const unsubscribe = subscribeComplaints(null, (allComplaints) => {
-      setComplaints(allComplaints);
-      setLoading(false);
-    });
+    const unsubscribe = subscribeComplaints(
+      null,
+      (allComplaints) => {
+        setComplaints(allComplaints);
+        setLoading(false);
+      },
+      setLoadError
+    );
 
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
@@ -88,43 +94,34 @@ export default function AdminMapView() {
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-teal-600 uppercase tracking-wider mb-1">
-            <MapPin className="w-4 h-4" />
-            <span>Kerala LSG GIS Hotspot Intelligence</span>
+    <div>
+      <PageHeader
+        eyebrow="Geospatial view"
+        title="Complaint map"
+        subtitle="Every reported issue plotted by location and colour-coded by urgency."
+        actions={
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full">
+            {['all', 'Critical', 'High', 'Medium', 'Low'].map((lvl) => (
+              <button
+                key={lvl}
+                type="button"
+                onClick={() => setSelectedUrgency(lvl)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition cursor-pointer ${
+                  selectedUrgency === lvl
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
+                }`}
+              >
+                {lvl === 'all' ? 'All' : lvl}
+              </button>
+            ))}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Geospatial Complaint Map
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Color-coded civic incidents plotted across municipal wards with live urgency dispatch.
-          </p>
-        </div>
-
-        {/* Urgency Filter Pill Selector */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-bold text-slate-500">Filter Urgency:</span>
-          {['all', 'Critical', 'High', 'Medium', 'Low'].map((lvl) => (
-            <button
-              key={lvl}
-              onClick={() => setSelectedUrgency(lvl)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                selectedUrgency === lvl
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
-              }`}
-            >
-              {lvl === 'all' ? 'All Pins' : lvl}
-            </button>
-          ))}
-        </div>
-      </div>
+        }
+      />
+      {loadError && <Alert tone="error" className="mb-4">{loadError}</Alert>}
 
       {/* Map Container */}
-      <div className="relative h-[68vh] w-full rounded-3xl overflow-hidden border border-slate-300 shadow-md">
+      <div className="relative h-[60vh] lg:h-[68vh] w-full rounded-2xl overflow-hidden border border-slate-200 shadow-card">
         {loading ? (
           <div className="h-full w-full flex flex-col items-center justify-center bg-slate-100">
             <RefreshCw className="w-8 h-8 text-teal-600 animate-spin mb-2" />
@@ -184,7 +181,7 @@ export default function AdminMapView() {
                         <button
                           type="button"
                           onClick={() => setActiveComplaint(item)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-md font-bold text-xs shadow transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-md font-bold text-xs transition-colors cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" /> Manage Issue
                         </button>
@@ -198,25 +195,25 @@ export default function AdminMapView() {
         )}
 
         {/* Urgency Legend Overlay */}
-        <div className="absolute bottom-4 right-4 z-[400] bg-white/95 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-slate-200 text-xs space-y-1.5 pointer-events-auto">
+        <div className="absolute bottom-3 left-3 sm:left-auto sm:right-4 z-[400] bg-white/95 backdrop-blur-md p-3 rounded-2xl shadow-lg border border-slate-200 text-xs space-y-1.5 pointer-events-auto">
           <div className="font-bold text-slate-800 uppercase tracking-wider text-[10px] mb-1">
-            Urgency Pin Legend
+            Urgency
           </div>
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-500" />
-            <span className="text-slate-700 font-medium">Critical (Immediate safety risk)</span>
+            <span className="text-slate-700 font-medium">Critical</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-orange-500" />
-            <span className="text-slate-700 font-medium">High (Action within days)</span>
+            <span className="text-slate-700 font-medium">High</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-yellow-500" />
-            <span className="text-slate-700 font-medium">Medium (Routine maintenance)</span>
+            <span className="text-slate-700 font-medium">Medium</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-green-500" />
-            <span className="text-slate-700 font-medium">Low (Cosmetic/minor)</span>
+            <span className="text-slate-700 font-medium">Low</span>
           </div>
         </div>
       </div>
