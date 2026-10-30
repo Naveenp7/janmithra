@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { MapContainer, TileLayer, Marker, Circle, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import {
   Navigation,
@@ -14,138 +14,108 @@ import {
   RotateCcw,
 } from 'lucide-react';
 
-// Create a standalone SVG vector pin icon (no external CDN dependencies)
-const createPinIcon = () => {
-  return L.divIcon({
-    className: 'custom-location-pin',
-    html: `
-      <div style="position: relative; width: 40px; height: 50px;">
-        <!-- Pulsing Ground Target Ring -->
-        <div style="
-          position: absolute;
-          bottom: 0px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 26px;
-          height: 11px;
-          background: rgba(24, 106, 66, 0.4);
-          border: 2px solid #186a42;
-          border-radius: 50%;
-          animation: pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-        "></div>
-        <!-- Shadow -->
-        <div style="
-          position: absolute;
-          bottom: 2px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 15px;
-          height: 6px;
-          background: rgba(0,0,0,0.4);
-          border-radius: 50%;
-        "></div>
-        <!-- Vector Pin -->
-        <div style="
-          position: absolute;
-          top: 0;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 38px;
-          height: 48px;
-          filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));
-        ">
-          <svg viewBox="0 0 36 48" width="38" height="48" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M18 0C8.05887 0 0 8.05887 0 18C0 30.5 16 46 18 48C20 46 36 30.5 36 18C36 8.05887 27.9411 0 18 0Z" fill="#186a42"/>
-            <path d="M18 2C9.16344 2 2 9.16344 2 18C2 28.5 16 43.5 18 45.5C20 43.5 34 28.5 34 18C34 9.16344 26.8366 2 18 2Z" fill="#0f4230"/>
-            <circle cx="18" cy="18" r="8" fill="#ffffff"/>
-            <circle cx="18" cy="18" r="4.5" fill="#186a42"/>
-          </svg>
-        </div>
+// Kochi — only used as the initial map view before a location is chosen
+const DEFAULT_VIEW = { lat: 9.9816, lng: 76.2999 };
+// Rough bounding box of Kerala, used to sanity-check detected / picked points
+const KERALA_BOUNDS = { south: 8.1, north: 12.85, west: 74.8, east: 77.45 };
+const isInsideKerala = (lat, lng) =>
+  lat >= KERALA_BOUNDS.south && lat <= KERALA_BOUNDS.north && lng >= KERALA_BOUNDS.west && lng <= KERALA_BOUNDS.east;
+
+// GPS tuning
+const GOOD_ACCURACY_M = 25; // stop refining once we are this precise
+const APPROX_ACCURACY_M = 150; // above this we warn that the pin is only approximate
+const GPS_REFINE_MS = 10000; // how long we keep refining the fix
+
+// Standalone SVG vector pin icon (no external CDN dependencies)
+const pinIcon = L.divIcon({
+  className: 'custom-location-pin',
+  html: `
+    <div style="position: relative; width: 40px; height: 50px;">
+      <div style="position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:15px;height:6px;background:rgba(0,0,0,0.4);border-radius:50%;"></div>
+      <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:38px;height:48px;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.4));">
+        <svg viewBox="0 0 36 48" width="38" height="48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18 0C8.05887 0 0 8.05887 0 18C0 30.5 16 46 18 48C20 46 36 30.5 36 18C36 8.05887 27.9411 0 18 0Z" fill="#186a42"/>
+          <path d="M18 2C9.16344 2 2 9.16344 2 18C2 28.5 16 43.5 18 45.5C20 43.5 34 28.5 34 18C34 9.16344 26.8366 2 18 2Z" fill="#0f4230"/>
+          <circle cx="18" cy="18" r="8" fill="#ffffff"/>
+          <circle cx="18" cy="18" r="4.5" fill="#186a42"/>
+        </svg>
       </div>
-    `,
-    iconSize: [40, 50],
-    iconAnchor: [20, 48],
-    popupAnchor: [0, -48],
-  });
-};
+    </div>
+  `,
+  iconSize: [40, 50],
+  iconAnchor: [20, 48],
+  popupAnchor: [0, -48],
+});
 
-const pinIcon = createPinIcon();
+/**
+ * Turn a Nominatim address object into a ward-ish label and a landmark line.
+ */
+function formatPlace(addr = {}, displayName = '') {
+  const suburb =
+    addr.suburb || addr.neighbourhood || addr.residential || addr.quarter || addr.hamlet || addr.village || addr.city_district || '';
+  const city =
+    addr.city || addr.town || addr.municipality || addr.village || addr.county || addr.state_district || 'Kerala';
+  const road = addr.road || addr.pedestrian || addr.footway || addr.street || '';
 
-// Helper to reverse geocode lat/lng to readable address & ward
-async function reverseGeocode(lat, lng) {
+  const ward = suburb && suburb !== city ? `${suburb}, ${city}` : city;
+  const address = road
+    ? `${road}${suburb ? ', near ' + suburb : ''}`
+    : displayName
+    ? displayName.split(',').slice(0, 3).join(', ').trim()
+    : '';
+
+  const tidy = (t) => t.replace(/\s+/g, ' ').replace(/\s+,/g, ',').trim();
+  return { ward: tidy(ward), address: tidy(address) };
+}
+
+async function reverseGeocode(lat, lng, signal) {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-      { headers: { 'Accept-Language': 'en' } }
+      { headers: { 'Accept-Language': 'en' }, signal }
     );
     if (!res.ok) return null;
     const data = await res.json();
-    const addr = data.address || {};
-    const suburb = addr.suburb || addr.neighbourhood || addr.residential || addr.village || addr.town || addr.city_district || '';
-    const city = addr.city || addr.town || addr.county || 'Kerala';
-    const road = addr.road || addr.pedestrian || addr.street || '';
-
-    const wardText = suburb ? `${suburb}, ${city}` : city;
-    const landmarkText = road
-      ? `${road}${suburb ? ', near ' + suburb : ''}`
-      : data.display_name
-      ? data.display_name.split(',').slice(0, 3).join(', ')
-      : '';
-
-    return { ward: wardText, address: landmarkText };
-  } catch (err) {
-    return null;
+    if (data.error) return null;
+    return formatPlace(data.address, data.display_name);
+  } catch {
+    return null; // network error or aborted
   }
 }
 
-// Handles user clicks and dragging on the map
-function MapClickHandler({ position, onPositionChange }) {
+// Handles map taps and pin dragging
+function MapInteractions({ position, onPick }) {
   useMapEvents({
     click(e) {
-      onPositionChange({ lat: e.latlng.lat, lng: e.latlng.lng });
+      onPick(e.latlng.lat, e.latlng.lng);
     },
   });
 
   const markerRef = useRef(null);
-
   const eventHandlers = React.useMemo(
     () => ({
       dragend() {
-        const marker = markerRef.current;
-        if (marker != null) {
-          const newLatLng = marker.getLatLng();
-          onPositionChange({ lat: newLatLng.lat, lng: newLatLng.lng });
+        const m = markerRef.current;
+        if (m) {
+          const { lat, lng } = m.getLatLng();
+          onPick(lat, lng);
         }
       },
     }),
-    [onPositionChange]
+    [onPick]
   );
 
   return position ? (
-    <Marker
-      draggable={true}
-      eventHandlers={eventHandlers}
-      position={[position.lat, position.lng]}
-      icon={pinIcon}
-      ref={markerRef}
-    />
+    <Marker draggable eventHandlers={eventHandlers} position={[position.lat, position.lng]} icon={pinIcon} ref={markerRef} />
   ) : null;
 }
 
-// Programmatically controls map camera movements
-function MapController({ targetPos, shouldFly, onFlyComplete }) {
+// Moves the camera whenever `target` changes
+function MapFlyer({ target }) {
   const map = useMap();
-
   useEffect(() => {
-    if (shouldFly && targetPos && targetPos.lat && targetPos.lng) {
-      map.flyTo([targetPos.lat, targetPos.lng], 16, {
-        animate: true,
-        duration: 1.4,
-      });
-      if (onFlyComplete) onFlyComplete();
-    }
-  }, [shouldFly, targetPos, map, onFlyComplete]);
-
+    if (target) map.flyTo([target.lat, target.lng], target.zoom || 16, { animate: true, duration: 1.2 });
+  }, [target, map]);
   return null;
 }
 
@@ -163,229 +133,327 @@ const KERALA_DISTRICTS = [
   { name: 'Malappuram', lat: 11.0510, lng: 76.0711, ward: 'Malappuram LSG' },
 ];
 
-export default function LocationPicker({
-  location = { lat: 9.9816, lng: 76.2999, ward: '', address: '' },
-  onChange,
-}) {
-  const [gpsLoading, setGpsLoading] = useState(false);
-  const [gpsSuccess, setGpsSuccess] = useState(false);
-  const [gpsNote, setGpsNote] = useState(null);
-  const [geocoding, setGeocoding] = useState(false);
-  const [shouldFlyMap, setShouldFlyMap] = useState(false);
+export default function LocationPicker({ location, onChange }) {
+  const hasLocation = location?.lat != null && location?.lng != null;
+  const position = hasLocation ? { lat: location.lat, lng: location.lng } : null;
 
-  // Search autocomplete state
+  const [gpsStatus, setGpsStatus] = useState('idle'); // idle | locating | done
+  const [accuracy, setAccuracy] = useState(null); // metres, only for GPS fixes
+  const [note, setNote] = useState(null); // { type: 'warning' | 'info', message }
+  const [geocoding, setGeocoding] = useState(false);
+  const [flyTarget, setFlyTarget] = useState(null);
+
+  // Search autocomplete
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Default coordinates (Kochi)
-  const currentPos = {
-    lat: location.lat || 9.9816,
-    lng: location.lng || 76.2999,
-  };
+  // Always read the freshest location inside async callbacks (avoids stale-closure overwrites)
+  const locRef = useRef(location);
+  locRef.current = location;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const patch = useCallback((changes) => onChangeRef.current({ ...locRef.current, ...changes }), []);
 
-  const handlePositionChange = async (newPos) => {
-    const lat = Number(newPos.lat.toFixed(6));
-    const lng = Number(newPos.lng.toFixed(6));
+  // Which text fields the user typed into since the pin last moved (we never overwrite those)
+  const edited = useRef({ ward: false, address: false });
+  const geoRequest = useRef({ id: 0, controller: null });
+  const watchId = useRef(null);
+  const watchTimer = useRef(null);
 
-    // Update coordinates immediately
-    onChange({
-      ...location,
-      lat,
-      lng,
-    });
+  /**
+   * Put the pin somewhere. Coordinates update instantly; ward/address are filled from reverse
+   * geocoding, and a slow lookup for an old pin can never overwrite a newer one.
+   */
+  const setPosition = useCallback(
+    async (rawLat, rawLng, { fly = false, zoom, acc = null, resetText = true } = {}) => {
+      const lat = Number(rawLat.toFixed(6));
+      const lng = Number(rawLng.toFixed(6));
 
-    // Auto-fill address & ward
-    setGeocoding(true);
-    const geoInfo = await reverseGeocode(lat, lng);
-    setGeocoding(false);
+      if (resetText) edited.current = { ward: false, address: false };
+      setAccuracy(acc);
 
-    if (geoInfo) {
-      onChange({
-        ...location,
+      // Clear stale ward/address (belonging to the previous pin) unless the user typed them
+      patch({
         lat,
         lng,
-        ward: location.ward ? location.ward : geoInfo.ward,
-        address: geoInfo.address || location.address,
+        ...(edited.current.ward ? {} : { ward: '' }),
+        ...(edited.current.address ? {} : { address: '' }),
+      });
+      if (fly) setFlyTarget({ lat, lng, zoom, key: Date.now() });
+
+      if (!isInsideKerala(lat, lng)) {
+        setNote({
+          type: 'warning',
+          message: 'This point appears to be outside Kerala. Please check the pin, or search for your place below.',
+        });
+      } else {
+        setNote((n) => (n?.sticky ? n : null));
+      }
+
+      // Reverse geocode (cancel any earlier lookup)
+      geoRequest.current.controller?.abort();
+      const controller = new AbortController();
+      const id = geoRequest.current.id + 1;
+      geoRequest.current = { id, controller };
+
+      setGeocoding(true);
+      const info = await reverseGeocode(lat, lng, controller.signal);
+      if (geoRequest.current.id !== id) return; // a newer pin superseded this one
+      setGeocoding(false);
+
+      if (info) {
+        patch({
+          ...(edited.current.ward ? {} : { ward: info.ward }),
+          ...(edited.current.address ? {} : { address: info.address }),
+        });
+      }
+    },
+    [patch]
+  );
+
+  const onPick = useCallback((lat, lng) => {
+    stopWatching();
+    setGpsStatus('idle');
+    setPosition(lat, lng);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setPosition]);
+
+  // ----------------------------- GPS -----------------------------
+  function stopWatching() {
+    if (watchId.current != null) navigator.geolocation?.clearWatch(watchId.current);
+    watchId.current = null;
+    clearTimeout(watchTimer.current);
+  }
+
+  const finishGps = useCallback((best) => {
+    stopWatching();
+    setGpsStatus('done');
+    if (best && best.acc > APPROX_ACCURACY_M) {
+      setNote({
+        type: 'info',
+        sticky: true,
+        message: `Your location is approximate (±${Math.round(best.acc)} m). Drag the pin to the exact spot of the problem.`,
       });
     }
+    setTimeout(() => setGpsStatus((s) => (s === 'done' ? 'idle' : s)), 3500);
+  }, []);
+
+  const describeGpsError = (err) => {
+    if (!window.isSecureContext) {
+      return 'Browsers only allow GPS on secure (HTTPS) pages. Search your place below or tap the map to place the pin.';
+    }
+    if (err.code === 1) {
+      return 'Location permission is blocked. Allow location for this site in your browser settings (the padlock/tune icon in the address bar), then try again — or search your place below.';
+    }
+    if (err.code === 2) {
+      return 'Your device could not determine its position. Turn on Location/GPS, move near a window, or search your place below.';
+    }
+    return 'Finding your location took too long. Try again, or search your place below.';
   };
 
-  // Search input debounced query
+  const detectLocation = useCallback(
+    ({ auto = false } = {}) => {
+      if (!navigator.geolocation) {
+        if (!auto) setNote({ type: 'warning', message: 'This browser does not support location. Search your place or tap the map.' });
+        return;
+      }
+      if (!window.isSecureContext) {
+        if (!auto) setNote({ type: 'warning', message: describeGpsError({ code: 0 }) });
+        return;
+      }
+
+      stopWatching();
+      setNote(null);
+      setGpsStatus('locating');
+
+      let best = null;
+      let gotFix = false;
+
+      const onFix = (pos) => {
+        const { latitude, longitude, accuracy: acc } = pos.coords;
+        // Keep only fixes that improve on what we have (first fix always accepted)
+        if (best && acc >= best.acc) return;
+        best = { lat: latitude, lng: longitude, acc };
+        const firstFix = !gotFix;
+        gotFix = true;
+        setPosition(latitude, longitude, {
+          fly: firstFix || acc <= GOOD_ACCURACY_M,
+          zoom: acc <= 60 ? 17 : 16,
+          acc,
+          resetText: true,
+        });
+        if (acc <= GOOD_ACCURACY_M) finishGps(best);
+      };
+
+      const fallbackToNetworkFix = () => {
+        // Hardware GPS failed: ask for a coarse (Wi-Fi/cell) position instead
+        navigator.geolocation.getCurrentPosition(
+          onFix,
+          (err) => {
+            setGpsStatus('idle');
+            if (!auto || err.code === 1) setNote({ type: 'warning', sticky: true, message: describeGpsError(err) });
+          },
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 120000 }
+        );
+        watchTimer.current = setTimeout(() => finishGps(best), 11000);
+      };
+
+      watchId.current = navigator.geolocation.watchPosition(
+        onFix,
+        (err) => {
+          stopWatching();
+          if (err.code === 1) {
+            setGpsStatus('idle');
+            if (!auto) setNote({ type: 'warning', sticky: true, message: describeGpsError(err) });
+            return;
+          }
+          if (gotFix) return finishGps(best);
+          fallbackToNetworkFix();
+        },
+        // maximumAge 0: never accept a stale cached position
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+
+      // Stop refining after a while with whatever best fix we have
+      watchTimer.current = setTimeout(() => {
+        if (gotFix) finishGps(best);
+      }, GPS_REFINE_MS);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [setPosition, finishGps]
+  );
+
+  // Auto-detect once on first load (unless permission was already refused)
+  const autoTried = useRef(false);
   useEffect(() => {
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+    if (autoTried.current || hasLocation) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const status = await navigator.permissions?.query({ name: 'geolocation' });
+        if (cancelled || status?.state === 'denied') return;
+      } catch {
+        /* Permissions API unsupported (Safari) — just try */
+      }
+      if (cancelled || autoTried.current) return;
+      autoTried.current = true; // set only when we actually start (StrictMode runs effects twice)
+      detectLocation({ auto: true });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasLocation, detectLocation]);
+
+  // Cleanup on unmount
+  useEffect(
+    () => () => {
+      stopWatching();
+      geoRequest.current.controller?.abort();
+    },
+    []
+  );
+
+  // ----------------------------- Search -----------------------------
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
-      return;
+      return undefined;
     }
 
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        const queryUrl = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&q=${encodeURIComponent(
-          searchQuery + ', Kerala'
-        )}&limit=5`;
-        const res = await fetch(queryUrl, {
-          headers: { 'Accept-Language': 'en' },
-        });
+        // Restrict to Kerala's bounding box so "Palarivattom" never resolves to another state
+        const url =
+          'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=in' +
+          `&viewbox=${KERALA_BOUNDS.west},${KERALA_BOUNDS.north},${KERALA_BOUNDS.east},${KERALA_BOUNDS.south}&bounded=1` +
+          `&q=${encodeURIComponent(q)}`;
+        const res = await fetch(url, { headers: { 'Accept-Language': 'en' }, signal: controller.signal });
         if (res.ok) {
-          const data = await res.json();
-          setSuggestions(data);
+          setSuggestions(await res.json());
           setShowSuggestions(true);
         }
       } catch (e) {
-        setSuggestions([]);
+        if (e.name !== 'AbortError') setSuggestions([]);
       } finally {
-        setSearching(false);
+        if (!controller.signal.aborted) setSearching(false);
       }
-    }, 350);
+    }, 450); // Nominatim asks for gentle usage
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [searchQuery]);
 
-  // Pick place from search
   const handleSelectPlace = (place) => {
-    const lat = Number(parseFloat(place.lat).toFixed(6));
-    const lng = Number(parseFloat(place.lon).toFixed(6));
+    stopWatching();
+    setGpsStatus('idle');
+    const lat = parseFloat(place.lat);
+    const lng = parseFloat(place.lon);
+    const { ward, address } = formatPlace(place.address, place.display_name);
 
-    const parts = place.display_name.split(',');
-    const localityName = parts.slice(0, 2).join(',').trim();
-    const cityDistrict = parts.slice(2, 4).join(',').trim();
-
-    onChange({
-      ...location,
-      lat,
-      lng,
-      ward: cityDistrict || localityName,
-      address: place.display_name.split(',').slice(0, 3).join(', '),
-    });
+    edited.current = { ward: false, address: false };
+    setAccuracy(null);
+    geoRequest.current.controller?.abort(); // the search result already has the address
+    geoRequest.current.id += 1;
+    setGeocoding(false);
+    patch({ lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)), ward, address });
+    setFlyTarget({ lat, lng, zoom: 17, key: Date.now() });
 
     setShowSuggestions(false);
-    setSearchQuery(localityName);
-    setGpsNote(null);
+    setSearchQuery(place.display_name.split(',')[0].trim());
+    setNote(isInsideKerala(lat, lng) ? null : { type: 'warning', message: 'This place appears to be outside Kerala.' });
   };
 
-  // 1-Tap District quick jump
   const handleSelectDistrict = (dist) => {
-    onChange({
-      ...location,
-      lat: dist.lat,
-      lng: dist.lng,
-      ward: dist.ward,
-      address: dist.name + ', Kerala',
-    });
-    setShouldFlyMap(true);
-    setGpsNote(null);
+    stopWatching();
+    setGpsStatus('idle');
+    edited.current = { ward: false, address: false };
+    setAccuracy(null);
+    geoRequest.current.controller?.abort();
+    patch({ lat: dist.lat, lng: dist.lng, ward: dist.ward, address: `${dist.name.split(' / ')[0]}, Kerala` });
+    setFlyTarget({ lat: dist.lat, lng: dist.lng, zoom: 14, key: Date.now() });
+    setNote({ type: 'info', message: 'District centre selected. Tap the map or drag the pin to the exact spot.' });
   };
 
-  // Reset / Clear location
   const handleClearLocation = () => {
-    onChange({
-      lat: 9.9816,
-      lng: 76.2999,
-      ward: '',
-      address: '',
-    });
-    setSearchQuery('');
-    setGpsNote(null);
-    setGpsSuccess(false);
-  };
-
-  // Geolocation Handler
-  const handleGpsClick = () => {
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const isHttps = window.location.protocol === 'https:';
-
-    if (!navigator.geolocation) {
-      setGpsNote({
-        type: 'warning',
-        message: 'Geolocation is not supported by your browser. Please search your place or tap the map.',
-      });
-      return;
-    }
-
-    setGpsLoading(true);
-    setGpsNote(null);
-    setGpsSuccess(false);
-
-    // Try high-accuracy device GPS
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        applyCoordinates(pos.coords.latitude, pos.coords.longitude);
-      },
-      (err) => {
-        setGpsLoading(false);
-        console.warn('[Location] GPS query failed:', err.message, 'Code:', err.code);
-
-        // Mobile browsers block GPS over insecure HTTP LAN origins
-        if (!isLocalhost && !isHttps) {
-          setGpsNote({
-            type: 'warning',
-            message:
-              'Mobile browsers (Chrome/Safari) block hardware GPS over HTTP local network IP addresses. Please use the Search bar below or tap directly on the map to pinpoint your location.',
-          });
-        } else {
-          setGpsNote({
-            type: 'warning',
-            message:
-              'Location access was denied or timed out. Please allow location permissions in your browser or search your locality below.',
-          });
-        }
-      },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-    );
-  };
-
-  const applyCoordinates = async (rawLat, rawLng) => {
-    const lat = Number(rawLat.toFixed(6));
-    const lng = Number(rawLng.toFixed(6));
-
-    setGpsLoading(false);
-    setGpsSuccess(true);
-    setGpsNote(null);
-    setShouldFlyMap(true);
-
-    onChange({
-      ...location,
-      lat,
-      lng,
-    });
-
-    setGeocoding(true);
-    const geoInfo = await reverseGeocode(lat, lng);
+    stopWatching();
+    setGpsStatus('idle');
+    edited.current = { ward: false, address: false };
+    setAccuracy(null);
+    geoRequest.current.controller?.abort();
     setGeocoding(false);
-
-    if (geoInfo) {
-      onChange({
-        ...location,
-        lat,
-        lng,
-        ward: geoInfo.ward || location.ward || 'Kerala LSG Division',
-        address: geoInfo.address || location.address || '',
-      });
-    }
-
-    setTimeout(() => setGpsSuccess(false), 3500);
+    onChange({ lat: null, lng: null, ward: '', address: '' });
+    setSearchQuery('');
+    setNote(null);
   };
+
+  const mapCenter = position || DEFAULT_VIEW;
 
   return (
     <div className="space-y-3">
-      {/* Header bar with GPS Button */}
+      {/* Header bar with GPS button */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <label className="block text-sm font-bold text-slate-800 flex items-center gap-1.5">
-          <MapIcon className="w-4 h-4 text-teal-600" />
+        <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+          <MapIcon className="w-4 h-4 text-brand-600" />
           <span>Pin location</span>
-          {geocoding && <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />}
+          {geocoding && <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-600" aria-label="Finding address" />}
         </label>
 
         <div className="flex items-center gap-2">
-          {(location.address || location.ward) && (
+          {hasLocation && (
             <button
               type="button"
               onClick={handleClearLocation}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-all cursor-pointer "
-              title="Reset location and clear fields"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition cursor-pointer"
+              title="Remove the pin and clear the address"
             >
               <RotateCcw className="w-3 h-3 text-slate-500" />
               <span>Reset</span>
@@ -394,31 +462,31 @@ export default function LocationPicker({
 
           <button
             type="button"
-            onClick={handleGpsClick}
-            disabled={gpsLoading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-all  disabled:opacity-50 cursor-pointer"
+            onClick={() => detectLocation()}
+            disabled={gpsStatus === 'locating'}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 rounded-xl transition disabled:opacity-60 cursor-pointer"
           >
-            {gpsLoading ? (
+            {gpsStatus === 'locating' ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Locating You...</span>
+                <span>Locating…</span>
               </>
-            ) : gpsSuccess ? (
+            ) : gpsStatus === 'done' ? (
               <>
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>GPS Location Set!</span>
+                <span>Location set</span>
               </>
             ) : (
               <>
                 <Navigation className="w-3.5 h-3.5" />
-                <span>Use My Current GPS</span>
+                <span>Use my current location</span>
               </>
             )}
           </button>
         </div>
       </div>
 
-      {/* Place Search Bar with Autocomplete Suggestions */}
+      {/* Search with autocomplete */}
       <div className="relative">
         <div className="relative flex items-center">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5" />
@@ -426,15 +494,20 @@ export default function LocationPicker({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => {
-              if (suggestions.length > 0) setShowSuggestions(true);
+            onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setShowSuggestions(false);
+              if (e.key === 'Enter' && suggestions.length > 0) {
+                e.preventDefault();
+                handleSelectPlace(suggestions[0]);
+              }
             }}
-            placeholder="Search your town, ward, or landmark in Kerala (e.g. Edappally, Palarivattom)..."
-            className="w-full text-xs pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white text-slate-800 font-medium transition-all "
+            placeholder="Search a town, ward or landmark in Kerala (e.g. Edappally)"
+            aria-label="Search for a place in Kerala"
+            className="input pl-10 pr-9 text-xs"
           />
-          {searching && (
-            <Loader2 className="w-3.5 h-3.5 text-teal-600 animate-spin absolute right-3" />
-          )}
+          {searching && <Loader2 className="w-3.5 h-3.5 text-brand-600 animate-spin absolute right-3" />}
           {searchQuery && !searching && (
             <button
               type="button"
@@ -443,6 +516,7 @@ export default function LocationPicker({
                 setSuggestions([]);
                 setShowSuggestions(false);
               }}
+              aria-label="Clear search"
               className="p-1 text-slate-400 hover:text-slate-600 absolute right-2.5 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
@@ -450,115 +524,131 @@ export default function LocationPicker({
           )}
         </div>
 
-        {/* Autocomplete Dropdown */}
-        {showSuggestions && suggestions.length > 0 && (
+        {showSuggestions && (
           <div className="absolute top-full left-0 right-0 mt-1.5 bg-white rounded-2xl shadow-xl border border-slate-200 divide-y divide-slate-100 z-50 overflow-hidden max-h-60 overflow-y-auto">
-            {suggestions.map((item, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => handleSelectPlace(item)}
-                className="w-full text-left p-3 hover:bg-teal-50/70 transition-colors flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer"
-              >
-                <MapPin className="w-4 h-4 text-teal-600 flex-shrink-0 mt-0.5" />
-                <span className="line-clamp-2 leading-relaxed">{item.display_name}</span>
-              </button>
-            ))}
+            {suggestions.length === 0 ? (
+              <div className="p-3 text-xs text-slate-500">No places found in Kerala. Try a nearby town or tap the map.</div>
+            ) : (
+              suggestions.map((item) => (
+                <button
+                  key={item.place_id}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleSelectPlace(item)}
+                  className="w-full text-left p-3 hover:bg-brand-50/70 transition-colors flex items-start gap-2.5 text-xs text-slate-700 cursor-pointer"
+                >
+                  <MapPin className="w-4 h-4 text-brand-600 flex-shrink-0 mt-0.5" />
+                  <span className="line-clamp-2 leading-relaxed">{item.display_name}</span>
+                </button>
+              ))
+            )}
           </div>
         )}
       </div>
 
-      {/* Quick Kerala District Jump Pills */}
+      {/* District quick jump */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] no-scrollbar">
         <span className="text-slate-400 font-semibold flex-shrink-0 flex items-center gap-1 pl-0.5 text-[10px] uppercase tracking-wider">
-          <Compass className="w-3 h-3 text-teal-600" /> Jump to:
+          <Compass className="w-3 h-3 text-brand-600" /> Jump to:
         </span>
         {KERALA_DISTRICTS.map((dist) => (
           <button
             key={dist.name}
             type="button"
             onClick={() => handleSelectDistrict(dist)}
-            className="px-2.5 py-1 rounded-lg bg-teal-50/80 hover:bg-teal-100 text-teal-800 font-medium whitespace-nowrap border border-teal-200/70 transition-all flex-shrink-0 cursor-pointer  active:scale-95"
+            className="px-2.5 py-1 rounded-lg bg-brand-50/80 hover:bg-brand-100 text-brand-800 font-medium whitespace-nowrap border border-brand-200/70 transition flex-shrink-0 cursor-pointer active:scale-95"
           >
             {dist.name.split(' / ')[0]}
           </button>
         ))}
       </div>
 
-      {gpsNote && (
+      {note && (
         <div
+          role="status"
           className={`flex items-start gap-2.5 p-3 rounded-xl text-xs ${
-            gpsNote.type === 'warning'
-              ? 'text-amber-950 bg-amber-50 border border-amber-300 '
+            note.type === 'warning'
+              ? 'text-amber-950 bg-amber-50 border border-amber-300'
               : 'text-slate-700 bg-slate-100 border border-slate-200'
           }`}
         >
-          <AlertCircle className="w-4 h-4 flex-shrink-0 text-amber-600 mt-0.5" />
-          <div className="space-y-1">
-            <div className="font-semibold leading-relaxed">{gpsNote.message}</div>
-            <div className="text-[11px] text-amber-800 font-normal leading-relaxed">
-              💡 <strong>Tip:</strong> Tap any district button above, search your town in the search bar, or tap directly on the map to position the pin.
-            </div>
-          </div>
+          <AlertCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${note.type === 'warning' ? 'text-amber-600' : 'text-slate-500'}`} />
+          <div className="font-medium leading-relaxed">{note.message}</div>
         </div>
       )}
 
-      {/* Interactive Leaflet Map */}
+      {/* Map */}
       <div className="relative h-64 sm:h-72 w-full rounded-2xl overflow-hidden border border-slate-300 shadow-inner z-0">
-        <MapContainer
-          center={[currentPos.lat, currentPos.lng]}
-          zoom={14}
-          scrollWheelZoom={false}
-          className="h-full w-full"
-        >
+        <MapContainer center={[mapCenter.lat, mapCenter.lng]} zoom={position ? 16 : 13} scrollWheelZoom={false} className="h-full w-full">
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <MapController
-            targetPos={currentPos}
-            shouldFly={shouldFlyMap}
-            onFlyComplete={() => setShouldFlyMap(false)}
-          />
-          <MapClickHandler position={currentPos} onPositionChange={handlePositionChange} />
+          <MapFlyer target={flyTarget} />
+          {position && accuracy != null && accuracy > 15 && (
+            <Circle
+              center={[position.lat, position.lng]}
+              radius={accuracy}
+              pathOptions={{ color: '#186a42', weight: 1, fillColor: '#2a9d62', fillOpacity: 0.12 }}
+              interactive={false}
+            />
+          )}
+          <MapInteractions position={position} onPick={onPick} />
         </MapContainer>
 
-        {/* Floating coordinates badge */}
-        <div className="absolute bottom-2 left-2 z-[400] bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-lg text-[11px] font-mono font-semibold text-slate-800 shadow-md border border-slate-200 pointer-events-none flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-teal-500 animate-ping" />
-          <span>Lat: {currentPos.lat}, Lng: {currentPos.lng}</span>
-        </div>
+        {gpsStatus === 'locating' && !position && (
+          <div className="absolute inset-0 z-[400] bg-white/60 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
+            <div className="bg-white rounded-xl shadow-md border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-brand-600" /> Finding your location…
+            </div>
+          </div>
+        )}
 
-        {/* Tap/drag guide badge */}
-        <div className="absolute top-2 right-2 z-[400] bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-lg text-[11px] font-semibold text-teal-800 shadow-md border border-teal-200 pointer-events-none flex items-center gap-1">
-          <Compass className="w-3.5 h-3.5 text-teal-600" /> Tap map or drag pin
+        {position ? (
+          <div className="absolute bottom-2 left-2 z-[400] bg-white/95 px-3 py-1.5 rounded-lg text-[11px] font-mono font-semibold text-slate-800 shadow-md border border-slate-200 pointer-events-none">
+            {position.lat}, {position.lng}
+            {accuracy != null && <span className="text-slate-500"> · ±{Math.round(accuracy)} m</span>}
+            {gpsStatus === 'locating' && <span className="text-brand-700"> · refining…</span>}
+          </div>
+        ) : (
+          <div className="absolute bottom-2 left-2 right-2 z-[400] bg-white/95 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-slate-700 shadow-md border border-slate-200 pointer-events-none text-center">
+            No location set yet — tap the map, search, or use your current location
+          </div>
+        )}
+
+        <div className="absolute top-2 right-2 z-[400] bg-white/95 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-brand-800 shadow-md border border-brand-200 pointer-events-none flex items-center gap-1">
+          <Compass className="w-3.5 h-3.5 text-brand-600" /> Tap map or drag pin
         </div>
       </div>
 
-      {/* Ward and Address text inputs */}
+      {/* Ward and address */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
         <div>
-          <label className="block text-xs font-semibold text-slate-600 mb-1">
-            Ward / Local LSG Division
-          </label>
+          <label className="label" htmlFor="loc-ward">Ward / local division</label>
           <input
+            id="loc-ward"
             type="text"
-            value={location.ward || ''}
-            onChange={(e) => onChange({ ...location, ward: e.target.value })}
-            placeholder="e.g. Ward 14 - MG Road Central, Kochi"
-            className="w-full text-sm px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all font-medium text-slate-800"
+            value={location?.ward || ''}
+            onChange={(e) => {
+              edited.current.ward = true;
+              patch({ ward: e.target.value });
+            }}
+            placeholder="Filled automatically — edit if needed"
+            className="input"
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-600 mb-1">
-            Nearby Landmark / Address
-          </label>
+          <label className="label" htmlFor="loc-address">Nearby landmark / address</label>
           <input
+            id="loc-address"
             type="text"
-            value={location.address || ''}
-            onChange={(e) => onChange({ ...location, address: e.target.value })}
-            placeholder="e.g. Opposite Metro Pillar 45, Near Post Office"
-            className="w-full text-sm px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all font-medium text-slate-800"
+            value={location?.address || ''}
+            onChange={(e) => {
+              edited.current.address = true;
+              patch({ address: e.target.value });
+            }}
+            placeholder="e.g. Opposite the post office"
+            className="input"
           />
         </div>
       </div>

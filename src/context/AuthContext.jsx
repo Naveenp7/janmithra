@@ -117,6 +117,13 @@ export function AuthProvider({ children }) {
     return userObj;
   };
 
+  /** Authority accounts must never act as citizens: sign them out and tell them where to log in. */
+  const rejectAdminInCitizenPortal = async () => {
+    await signOut(auth);
+    setCurrentUser(null);
+    throw new Error('This is an authority account. Please use the Authority login, or sign in with a citizen account here.');
+  };
+
   /**
    * Citizen Sign In via Firebase Auth
    */
@@ -136,6 +143,8 @@ export function AuthProvider({ children }) {
         role = userDetails.role || 'citizen';
       }
     }
+
+    if (role === 'admin') await rejectAdminInCitizenPortal();
 
     const userObj = {
       uid: cred.user.uid,
@@ -177,6 +186,8 @@ export function AuthProvider({ children }) {
         await setDoc(userRef, userDetails);
       }
     }
+
+    if (role === 'admin') await rejectAdminInCitizenPortal();
 
     const userObj = {
       uid: cred.user.uid,

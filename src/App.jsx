@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import AppShell from './components/AppShell.jsx';
 import { Spinner } from './components/ui.jsx';
@@ -49,6 +49,22 @@ function CitizenRoute({ children }) {
   return children;
 }
 
+// Citizen portal: an authority account can't act as a citizen. Switching over signs it out
+// and sends the user to the citizen login.
+function CitizenPortal() {
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
+  const isAdmin = currentUser?.role === 'admin';
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    logout().finally(() => navigate('/citizen/login', { replace: true, state: { signedOutAdmin: true } }));
+  }, [isAdmin]);
+
+  if (isAdmin) return <FullPageSpinner />;
+  return <AppShell portal="citizen" />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -61,7 +77,7 @@ export default function App() {
           <Route path="/admin/login" element={<AdminAuth />} />
 
           {/* Citizen portal */}
-          <Route element={<AppShell portal="citizen" />}>
+          <Route element={<CitizenPortal />}>
             <Route path="/citizen/overview" element={<PublicOverview />} />
             <Route path="/citizen" element={<SubmitComplaint />} />
             <Route

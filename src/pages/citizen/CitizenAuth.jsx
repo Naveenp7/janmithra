@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import AuthLayout from '../../components/AuthLayout.jsx';
@@ -41,10 +41,16 @@ export default function CitizenAuth() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const { loginCitizen, signupCitizen, loginWithGoogle, isFirebaseConfigured } = useAuth();
+  const { currentUser, logout, loginCitizen, signupCitizen, loginWithGoogle, isFirebaseConfigured } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/citizen/overview';
+  const signedOutAdmin = Boolean(location.state?.signedOutAdmin);
+
+  // Opening the citizen login while an authority account is active signs that account out
+  useEffect(() => {
+    if (currentUser?.role === 'admin') logout();
+  }, [currentUser?.role]);
 
   const run = async (fn) => {
     setError(null);
@@ -98,6 +104,11 @@ export default function CitizenAuth() {
         <Alert tone="warning" className="mb-5">
           <strong>Firebase setup needed.</strong> Add your Firebase keys to <code className="font-mono">.env</code> to
           enable sign-in (see SETUP_GUIDE.md).
+        </Alert>
+      )}
+      {signedOutAdmin && !error && (
+        <Alert tone="info" className="mb-5">
+          You were signed out of the authority account. Sign in with a citizen account to continue.
         </Alert>
       )}
       {error && <Alert tone="error" className="mb-5">{error}</Alert>}

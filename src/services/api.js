@@ -5,39 +5,39 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 /**
- * Calls backend NVIDIA NIM classifier endpoint
+ * Calls the backend Gemini classifier.
+ * @param {string} description  citizen text (may be empty when a photo is attached)
+ * @param {{imageData?: string, imageUrl?: string}} [media]  photo as a data URL, or a Cloudinary https URL
  */
-export async function classifyComplaint(description, hasImage = false, imageUrl = null) {
-  // Only publicly reachable https URLs can be sent to the vision model (never blob: previews)
-  const actualImageUrl = typeof imageUrl === 'string' && imageUrl.startsWith('https://') ? imageUrl : null;
-  const isImagePresent = Boolean(hasImage || actualImageUrl);
+export async function classifyComplaint(description, media = {}) {
+  const imageData = typeof media.imageData === 'string' && media.imageData.startsWith('data:image/') ? media.imageData : null;
+  const imageUrl = typeof media.imageUrl === 'string' && media.imageUrl.startsWith('https://') ? media.imageUrl : null;
 
   try {
     const response = await fetch(`${API_BASE}/api/classify-complaint`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         description: (description || '').slice(0, 1000),
-        hasImage: isImagePresent,
-        imageUrl: actualImageUrl,
+        hasImage: Boolean(imageData || imageUrl),
+        imageData,
+        imageUrl: imageData ? null : imageUrl,
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Server returned ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`Server returned ${response.status}`);
     return await response.json();
   } catch (error) {
-    console.warn('[API Client] Backend classification request failed, using client-side heuristic:', error);
+    console.warn('[API Client] Classification request failed:', error);
 
+    const hasPhoto = Boolean(imageData || imageUrl);
     return {
       category: detectCategory(description),
       urgency: 'Medium',
-      aiReasoning: 'Automated civic triage scheduled for initial departmental review.',
-      source: 'automated-triage',
+      aiReasoning: hasPhoto
+        ? 'AI analysis was unavailable, so this report was flagged for manual review by an officer.'
+        : 'AI analysis was unavailable; category was chosen from keywords and will be reviewed by an officer.',
+      source: 'offline-fallback',
     };
   }
 }

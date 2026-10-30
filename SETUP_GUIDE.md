@@ -1,7 +1,7 @@
 # 🛠️ JanMithra — Complete Step-by-Step API & Environment Setup Guide
 ## Civic Issue Reporting System for Kerala Local Self-Governments (LSGs)
 
-This guide walks you through setting up all third-party APIs (**Firebase**, **Cloudinary**, and **NVIDIA NIM**) and deploying the project locally or to **Vercel**.
+This guide walks you through setting up all third-party APIs (**Firebase**, **Cloudinary**, and **Gemini**) and deploying the project locally or to **Vercel**.
 
 ---
 
@@ -21,18 +21,18 @@ Run the unified development script:
 npm run dev
 ```
 This runs:
-- **API Server** on `http://localhost:5000` (handles NVIDIA NIM calls & health checks)
+- **API Server** on `http://localhost:5000` (handles Gemini AI calls & health checks)
 - **Vite React Client** on `http://localhost:5173` (with automatic `/api` proxying)
 
 > **💡 Zero-Setup Demo Mode:**
-> You can test the application **immediately** even before adding your external API keys! The app includes high-fidelity local reactive storage, 1-click demo logins for both Citizen and Admin roles, and an intelligent civic heuristic engine that auto-classifies complaints if NVIDIA keys are pending.
+> You can test the application **immediately** even before adding your external API keys! The app includes high-fidelity local reactive storage, 1-click demo logins for both Citizen and Admin roles, and an intelligent civic heuristic engine that auto-classifies complaints if the Gemini key is pending.
 
 ---
 
 ## 📋 Table of Contents
 1. [Firebase Setup (Authentication + Firestore Database)](#1-firebase-setup)
 2. [Cloudinary Setup (Unsigned Image Upload Preset)](#2-cloudinary-setup)
-3. [NVIDIA NIM AI Setup (Free-Tier LLM Inference)](#3-nvidia-nim-setup)
+3. [Gemini AI Setup](#3-gemini-ai-setup)
 4. [Configuring Environment Variables (`.env`)](#4-environment-variables-setup)
 5. [Vercel 1-Click Deployment](#5-vercel-deployment)
 6. [Testing the End-to-End Demo Flow](#6-testing-the-end-to-end-demo-flow)
@@ -113,19 +113,22 @@ Cloudinary provides image storage for photo evidence uploaded by citizens. Using
 
 ---
 
-## 3. NVIDIA NIM Setup
+## 3. Gemini AI Setup
 
-NVIDIA NIM provides hosted inference endpoints (such as `meta/llama-3.1-8b-instruct`) with free inference credits for AI classification of civic issues.
+JanMithra uses Google Gemini (`gemini-3.5-flash-lite`, a vision model) to read each complaint **and look at the photo**, then choose the department (Road, Water, Electricity, Waste, Drainage, Other) and urgency.
 
-### Step 3.1: Get Your Free NVIDIA NIM API Key
-1. Go to [NVIDIA API Catalog](https://build.nvidia.com/).
-2. Click **Sign In** / **Join the Developer Program** at the top-right (free with email or Google).
-3. Search or browse for **`meta/llama-3.1-8b-instruct`** (or `nvidia/llama-3.1-nemotron-70b-instruct`).
-4. On the model page, click **Get API Key** (or **Generate Key**).
-5. Copy the generated key (starts with `nvapi-...`).
-   > *Keep this key private. It is only read by your backend/serverless function and never sent to the client browser.*
+1. Go to [Google AI Studio → API keys](https://aistudio.google.com/apikey) and create a key.
+2. Add it to `.env` (and to Vercel → Settings → Environment Variables):
 
----
+```env
+GEMINI_API_KEY=your-gemini-key
+GEMINI_MODEL=gemini-3.5-flash-lite
+```
+
+3. Restart `npm run dev`. `GET /api/health` shows `aiConfigured: true` when the key is picked up.
+4. Check the classifier on any photo: `node scripts/test-classifier.mjs <image-file-or-url> "optional text"`.
+
+Without a key the app still works using a keyword fallback; photo-only reports are then flagged for manual review.
 
 ## 4. Environment Variables Setup
 
@@ -136,10 +139,10 @@ Create or edit `.env` in the root folder (`c:\GUIDO\janmithra\.env`):
 # JanMithra Civic Issue Reporting System — Environment Config
 # ================================================================
 
-# --- Server & NVIDIA NIM Configuration ---
+# --- Server & Gemini Configuration ---
 PORT=5000
-NIM_API_KEY=nvapi-your-real-nvidia-nim-key-here
-NIM_MODEL=meta/llama-3.1-8b-instruct
+GEMINI_API_KEY=your-gemini-key
+GEMINI_MODEL=gemini-3.5-flash-lite
 
 # --- Frontend Firebase Configuration ---
 VITE_FIREBASE_API_KEY=AIzaSy...your-firebase-api-key
@@ -174,8 +177,8 @@ This project is built to deploy to Vercel as a **single unified project** with z
 3. Import your repository (`janmithra`).
 4. Framework Preset: Vercel will automatically detect **Vite**.
 5. Under **Environment Variables**, add the exact keys from your `.env`:
-   - `NIM_API_KEY`
-   - `NIM_MODEL`
+   - `GEMINI_API_KEY`
+   - `GEMINI_MODEL`
    - `VITE_FIREBASE_API_KEY`
    - `VITE_FIREBASE_AUTH_DOMAIN`
    - `VITE_FIREBASE_PROJECT_ID`
@@ -218,7 +221,7 @@ Follow this checklist to test the full live system with Firebase Authentication:
 
 4. **Submit a Real Civic Complaint:**
    - Type your issue description (e.g. *"Deep pothole on MG Road near Metro pillar 45 causing two-wheelers to skid"*).
-   - Click **Preview AI Triage** to watch the NVIDIA NIM neural model analyze category, urgency, and reasoning.
+   - Click **Preview AI Triage** to watch the Gemini model analyze category, urgency, and reasoning.
    - Attach a photographic verification of the problem.
    - Pin your location on the Leaflet map or click **Use My Current GPS**.
    - Click **Submit Official Complaint to LSG Portal**.

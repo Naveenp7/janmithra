@@ -1,6 +1,7 @@
 import { classifyComplaintText } from './_classifier.js';
 
 const MAX_DESCRIPTION_LENGTH = 1000;
+const MAX_IMAGE_DATA_LENGTH = 4 * 1024 * 1024; // base64 chars; Vercel's request body limit is ~4.5MB
 const RATE_LIMIT = { windowMs: 60_000, max: 12 };
 const hits = new Map(); // best-effort, per server instance
 
@@ -34,32 +35,28 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { description, hasImage } = req.body || {};
-    const textDesc = typeof description === 'string' ? description.trim().slice(0, MAX_DESCRIPTION_LENGTH) : '';
-    // Only accept https image URLs hosted on Cloudinary (what the app uploads to)
-    const imageUrl =
-      typeof req.body?.imageUrl === 'string' && /^https:\/\/res\.cloudinary\.com\//.test(req.body.imageUrl)
-        ? req.body.imageUrl
-        : null;
+    const body = req.body || {};
+    const textDesc = typeof body.description === 'string' ? body.description.trim().slice(0, MAX_DESCRIPTION_LENGTH) : '';
 
-    if (!textDesc && !hasImage && !imageUrl) {
+    // Photo: either an inline data URL from the app, or a Cloudinary https URL
+    const imageData =
+      typeof body.imageData === 'string' && body.imageData.length <= MAX_IMAGE_DATA_LENGTH ? body.imageData : null;
+    const imageUrl =
+      typeof body.imageUrl === 'string' && /^https:\/\/res\.cloudinary\.com\//.test(body.imageUrl) ? body.imageUrl : null;
+    const hasImage = Boolean(imageData || imageUrl || body.hasImage);
+
+    if (!textDesc && !hasImage) {
       return res.status(400).json({ error: 'Complaint description or photo evidence is required' });
     }
 
-    const safeDescription = textDesc || 'Civic issue reported via on-site photo evidence.';
-
-    const classification = await classifyComplaintText(
-      safeDescription,
-      Boolean(hasImage || imageUrl),
-      imageUrl || null
-    );
+    const classification = await classifyComplaintText(textDesc, { imageData, imageUrl, hasImage });
     return res.status(200).json(classification);
   } catch (error) {
     console.error('Classification error:', error);
     return res.status(200).json({
       category: 'Other',
       urgency: 'Medium',
-      aiReasoning: 'Auto-classification unavailable — please review manually.',
+      aiReasoning: 'Auto-classification unavailable — flagged for manual review.',
       source: 'error-fallback',
     });
   }

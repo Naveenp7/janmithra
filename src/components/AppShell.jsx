@@ -91,7 +91,7 @@ function SidebarContent({ portal, onNavigate }) {
           className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white/60 hover:text-white hover:bg-white/10 transition-colors"
         >
           <ArrowRightLeft className="w-4 h-4" />
-          {portal === 'admin' ? 'Citizen portal' : 'Authority portal'}
+          {portal === 'admin' ? 'Citizen portal (signs out)' : 'Authority portal'}
         </Link>
 
         <div className="rounded-2xl bg-black/20 p-3">

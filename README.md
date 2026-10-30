@@ -1,7 +1,7 @@
 # JanMithra (ജനമിത്ര) — Civic Issue Reporting System
 ### AI-Powered Civic Triage & Real-Time Resolution Platform for Kerala's Local Self-Governments (LSGs)
 
-**JanMithra** connects citizens and local municipal authorities across Kerala. Citizens report civic issues (potholes, water pipeline bursts, dangling live wires, garbage dumping, clogged drainage) using text, photos, and geospatial pins. An AI triage engine automatically categorizes issues and scores urgency using **NVIDIA NIM LLM inference**, while municipal administrators track, assign, and resolve complaints on real-time dashboards and GIS maps.
+**JanMithra** connects citizens and local municipal authorities across Kerala. Citizens report civic issues (potholes, water pipeline bursts, dangling live wires, garbage dumping, clogged drainage) using text, photos, and geospatial pins. An AI triage engine automatically categorizes issues and scores urgency using **Google Gemini vision inference**, while municipal administrators track, assign, and resolve complaints on real-time dashboards and GIS maps.
 
 ---
 
@@ -11,7 +11,7 @@
    - Real Firebase Authentication: Email/Password registration & sign-in, and Google Sign-In (`select_account` prompt).
    - Citizen records stored in Firestore `users` collection (`role: "citizen"`).
    - Multimodal issue reporting: real text input, photographic verification via Cloudinary, and Leaflet GPS location picker.
-   - Real-time AI classification triage powered by NVIDIA NIM (`meta/llama-3.1-8b-instruct`).
+   - Real-time AI triage powered by Google Gemini (`gemini-3.5-flash-lite`): the model looks at the actual photo and routes it to the right department.
    - "My Complaints" list strictly filtered by authenticated citizen's UID.
    - Interactive 4-step live resolution timeline (*Submitted ➜ Assigned ➜ In Progress ➜ Resolved*), reacting instantaneously via Firestore `onSnapshot`.
 
@@ -36,7 +36,7 @@
 |---|---|
 | Frontend | React 18, Vite, Tailwind CSS, Lucide Icons |
 | Backend & AI Server | Node.js, Express (local dev) + Vercel Serverless Functions (`/api/*`) |
-| AI / LLM Engine | NVIDIA NIM API (`meta/llama-3.1-8b-instruct`) with civic heuristic fallback |
+| AI / LLM Engine | Google Gemini API (`gemini-3.5-flash-lite`, vision) with keyword fallback |
 | Database & Real-Time Sync | Firebase Cloud Firestore (`onSnapshot` live listeners) |
 | User Authentication | Firebase Auth (Email/Password + Google Sign-In) + Demo Quick-Switch |
 | Media Storage | Cloudinary (Direct Unsigned Upload Preset) |
@@ -64,7 +64,7 @@ Visit **`http://localhost:5173`** in your browser.
 
 ## 📖 API Setup & Configuration
 
-For comprehensive step-by-step instructions on obtaining and setting up your **Firebase**, **Cloudinary**, and **NVIDIA NIM** API keys, read the dedicated guide:
+For comprehensive step-by-step instructions on obtaining and setting up your **Firebase**, **Cloudinary**, and **Gemini** API keys, read the dedicated guide:
 
 👉 **[SETUP_GUIDE.md](file:///c:/GUIDO/janmithra/SETUP_GUIDE.md)**
 
@@ -82,9 +82,9 @@ c:\GUIDO\janmithra/
 ├── vercel.json                # Vercel serverless deployment rules
 ├── server.js                  # Express API server for local dev (port 5000)
 ├── api/                       # Vercel Serverless Functions
-│   ├── classify-complaint.js  # POST /api/classify-complaint (calls NVIDIA NIM)
+│   ├── classify-complaint.js  # POST /api/classify-complaint (Gemini vision classification)
 │   ├── health.js              # GET /api/health
-│   └── _classifier.js         # Shared NIM AI triage & heuristic engine
+│   └── _classifier.js         # Shared Gemini triage & heuristic engine
 ├── src/
 │   ├── main.jsx
 │   ├── App.jsx

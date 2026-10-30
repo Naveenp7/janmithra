@@ -80,6 +80,20 @@ export async function compressImage(file, maxWidth = 1600, maxHeight = 1600, qua
 }
 
 /**
+ * Returns a compressed data URL (max 1280px, ~200-500KB) so the AI can analyse the actual photo
+ * without waiting for the upload to finish.
+ */
+export async function imageToDataUrl(file) {
+  const small = await compressImage(file, 1280, 1280, 0.8);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Could not read the selected photo.'));
+    reader.readAsDataURL(small);
+  });
+}
+
+/**
  * Uploads an image file directly to Cloudinary using an unsigned upload preset.
  * 
  * @param {File} file - The image file to upload

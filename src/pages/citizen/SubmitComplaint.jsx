@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import LocationPicker from '../../components/LocationPicker.jsx';
 import UrgencyBadge from '../../components/UrgencyBadge.jsx';
 import { PageHeader, Alert } from '../../components/ui.jsx';
-import { uploadImageToCloudinary, isCloudinaryConfigured } from '../../services/cloudinary.js';
+import { uploadImageToCloudinary, isCloudinaryConfigured, imageToDataUrl } from '../../services/cloudinary.js';
 import { classifyComplaint } from '../../services/api.js';
 import { addComplaintToFirestore } from '../../services/firebase.js';
 import { Send, X, Sparkles, Loader2, Lock, CloudUpload, Cpu, Camera } from 'lucide-react';
@@ -35,9 +35,10 @@ export default function SubmitComplaint() {
   const [description, setDescription] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [imageData, setImageData] = useState(null); // compressed copy sent to the AI
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const [location, setLocation] = useState({ lat: 9.9816, lng: 76.2999, ward: '', address: '' });
+  const [location, setLocation] = useState({ lat: null, lng: null, ward: '', address: '' });
 
   const [aiPreview, setAiPreview] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -62,14 +63,19 @@ export default function SubmitComplaint() {
     }
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
+    setImageData(null);
     setUploadProgress(0);
     setAiPreview(null);
     setError(null);
+    imageToDataUrl(file)
+      .then(setImageData)
+      .catch(() => setImageData(null));
   };
 
   const removeImage = () => {
     setImageFile(null);
     setImagePreview(null);
+    setImageData(null);
     setUploadProgress(0);
     setAiPreview(null);
   };
@@ -81,16 +87,17 @@ export default function SubmitComplaint() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // Preview is text-based: the photo is only reachable by the AI after it is uploaded on submit.
+  // The AI looks at the real photo (and the text, if any) — preview matches what will be saved.
   const handleTestAi = async () => {
-    if (!description.trim()) {
-      setError('Describe the issue first to preview the AI triage.');
+    if (!description.trim() && !imageFile) {
+      setError('Describe the issue or add a photo to preview the AI triage.');
       return;
     }
     setError(null);
     setAiLoading(true);
     try {
-      setAiPreview(await classifyComplaint(description.trim(), Boolean(imageFile), null));
+      const data = imageFile ? imageData || (await imageToDataUrl(imageFile)) : null;
+      setAiPreview(await classifyComplaint(description.trim(), { imageData: data }));
     } catch {
       setError('AI classification preview failed.');
     } finally {
@@ -105,8 +112,16 @@ export default function SubmitComplaint() {
       setError('Please sign in as a citizen before submitting a complaint.');
       return;
     }
+    if (currentUser.role === 'admin') {
+      setError('Authority accounts cannot file complaints. Please sign in with a citizen account.');
+      return;
+    }
     if (!description.trim() && !imageFile) {
       setError('Please provide a description or attach a photo.');
+      return;
+    }
+    if (location.lat == null || location.lng == null) {
+      setError('Please set the location of the problem: use your current location, search a place, or tap the map.');
       return;
     }
 
@@ -115,24 +130,27 @@ export default function SubmitComplaint() {
     setUploadProgress(0);
 
     try {
-      let imageUrl = null;
-
-      if (imageFile) {
-        if (!isCloudinaryConfigured) {
-          throw new Error('Photo upload is currently unavailable. Remove the photo and submit a text description, or try again later.');
-        }
-        setSubmitStep('Uploading photo…');
-        imageUrl = await uploadImageToCloudinary(imageFile, (progress) => {
-          setUploadProgress(progress);
-          setSubmitStep(`Uploading photo (${progress}%)…`);
-        });
+      if (imageFile && !isCloudinaryConfigured) {
+        throw new Error('Photo upload is currently unavailable. Remove the photo and submit a text description, or try again later.');
       }
 
-      setSubmitStep('Analysing the issue…');
       const finalDescription = description.trim() || 'Civic issue reported via on-site photo evidence.';
-      // Re-classify when a photo was uploaded so the vision model can see it
-      const classification =
-        aiPreview && !imageUrl ? aiPreview : await classifyComplaint(finalDescription, Boolean(imageUrl), imageUrl);
+      setSubmitStep(imageFile ? 'Uploading and analysing your photo…' : 'Analysing the issue…');
+
+      // Upload and AI analysis run side by side; the AI sees the real photo
+      const [imageUrl, classification] = await Promise.all([
+        imageFile
+          ? uploadImageToCloudinary(imageFile, (progress) => {
+              setUploadProgress(progress);
+              setSubmitStep(`Uploading photo (${progress}%)…`);
+            })
+          : Promise.resolve(null),
+        aiPreview ||
+          (async () => {
+            const data = imageFile ? imageData || (await imageToDataUrl(imageFile)) : null;
+            return classifyComplaint(description.trim(), { imageData: data });
+          })(),
+      ]);
 
       setSubmitStep('Registering your complaint…');
       const saved = await addComplaintToFirestore({
@@ -206,7 +224,7 @@ export default function SubmitComplaint() {
             <button
               type="button"
               onClick={handleTestAi}
-              disabled={aiLoading || !description.trim()}
+              disabled={aiLoading || (!description.trim() && !imageFile)}
               className="btn-secondary btn-sm"
             >
               <Cpu className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
@@ -231,11 +249,6 @@ export default function SubmitComplaint() {
                 </div>
               </div>
               <p className="text-sm text-slate-700">{aiPreview.aiReasoning}</p>
-              {imageFile && (
-                <p className="text-[11px] text-slate-500 mt-2">
-                  Your photo will also be analysed when you submit.
-                </p>
-              )}
             </div>
           )}
         </Step>

@@ -14,7 +14,8 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json());
+// Photos are sent inline (compressed) for AI analysis, so allow a larger JSON body
+app.use(express.json({ limit: '6mb' }));
 
 // Mount API routes
 app.all('/api/classify-complaint', (req, res) => {
@@ -40,6 +41,6 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`\n======================================================`);
   console.log(`🚀 JanMithra Local API Server active on http://localhost:${PORT}`);
-  console.log(`🤖 NVIDIA NIM Key status: ${process.env.NIM_API_KEY ? 'Present' : 'Not set (using heuristic fallback)'}`);
+  console.log(`🤖 Gemini AI key: ${process.env.GEMINI_API_KEY ? 'Present' : 'Not set (using heuristic fallback)'} (${process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'})`);
   console.log(`======================================================\n`);
 });
